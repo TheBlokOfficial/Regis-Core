@@ -5,7 +5,7 @@ from typing import Any
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-ACTIVE_MODELS_FILE = os.path.join(DATA_DIR, "active_models.json")
+PROFILES_FILE = os.path.join(DATA_DIR, "profiles.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 ALIASES_FILE = os.path.join(DATA_DIR, "aliases.json")
 
@@ -16,7 +16,7 @@ def load_settings() -> dict[str, Any]:
         dict[str, Any]: Słownik z konfiguracją systemu.
     """
     default_settings = {
-        "selected_model": None, 
+        "selected_profile": None, 
         "temperature": 0.5,
         "history_limit": 10,
         "ha_url": "http://192.168.0.50:8123",
@@ -56,27 +56,27 @@ def load_aliases() -> dict[str, str]:
         except json.JSONDecodeError:
             return {}
 
-def load_active_models() -> list[str]:
-    """Ładuje zapisaną listę aktywnych modeli LLM.
+def load_profiles() -> list[dict]:
+    """Ładuje zapisaną listę profili modeli.
     
     Returns:
-        list[str]: Lista nazw modeli do wyświetlenia w menu.
+        list[dict]: Lista obiektów profili.
     """
-    if not os.path.exists(ACTIVE_MODELS_FILE):
+    if not os.path.exists(PROFILES_FILE):
         return []
-    with open(ACTIVE_MODELS_FILE, "r", encoding="utf-8") as f:
+    with open(PROFILES_FILE, "r", encoding="utf-8") as f:
         try:
             return json.load(f)
         except json.JSONDecodeError:
             return []
 
-def save_active_models(models: list[str]) -> None:
-    """Zapisuje nową listę aktywnych modeli LLM.
+def save_profiles(profiles: list[dict]) -> None:
+    """Zapisuje listę profili modeli.
     
     Args:
-        models (list[str]): Wyselekcjonowane przez usera modele z Ollamy.
+        profiles (list[dict]): Lista profili do zapisu.
     """
     if not os.path.exists(DATA_DIR):
         os.makedirs(DATA_DIR)
-    with open(ACTIVE_MODELS_FILE, "w", encoding="utf-8") as f:
-        json.dump(models, f, indent=4)
+    with open(PROFILES_FILE, "w", encoding="utf-8") as f:
+        json.dump(profiles, f, indent=4)

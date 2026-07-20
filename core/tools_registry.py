@@ -2,81 +2,40 @@ import json
 import logging
 from typing import Any, Callable
 
+from core.schemas import BASE_TOOLS_SCHEMA
+
 class ToolsRegistry:
     """Rejestr narzędzi dostarczanych dla modelu LLM."""
     
-    def __init__(self, ha_client):
+    def __init__(self, ha_client, tier: str = "advanced"):
         self.ha_client = ha_client
+        self.tier = tier
         
-        # Schematy narzędzi zgodne z formatem Ollamy (bazującym na OpenAI JSON Schema)
-        self.tools_schema = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_devices",
-                    "description": "Zwraca listę dostępnych urządzeń w systemie (np. nazwy świateł, przełączników). Użyj tego, by sprawdzić, czym możesz sterować.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "domain": {
-                                "type": "string",
-                                "description": "Opcjonalna domena, np. 'light' lub 'media_player', aby przefiltrować urządzenia."
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_device_state",
-                    "description": "Zwraca dokładny obecny stan urządzenia dla podanego entity_id.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "entity_id": {
-                                "type": "string",
-                                "description": "Dokładne ID encji, np. 'light.salon'"
-                            }
-                        },
-                        "required": ["entity_id"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "execute_ha_action",
-                    "description": "Wykonuje fizyczną akcję na urządzeniu. Opcjonalnie podaj parameters np. {'brightness_pct': 50}.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "action": {
-                                "type": "string",
-                                "description": "Typ akcji, np. 'turn_on' lub 'turn_off'."
-                            },
-                            "entity_id": {
-                                "type": ["string", "array"],
-                                "items": {
-                                    "type": "string"
-                                },
-                                "description": "Dokładne ID encji (np. 'light.salon') lub lista ID (np. ['light.1', 'light.2'])."
-                            },
-                            "parameters": {
-                                "type": "object",
-                                "description": "Dodatkowe parametry akcji, np. zmiana jasności."
-                            }
-                        },
-                        "required": ["action", "entity_id"]
-                    }
-                }
-            }
-        ]
+        # Schematy narzędzi importowane z zewnętrznego pliku
+        base_tools_schema = BASE_TOOLS_SCHEMA
+        
+        # Filtrowanie narzędzi na podstawie tieru
+        filtered_schema = []
+        for tool in base_tools_schema:
+            req_tier = tool.get("required_tier", "basic")
+            if self.tier == "basic" and req_tier == "advanced":
+                continue
+                
+            # Usuwamy niestandardowe pole "required_tier", ponieważ API Ollamy może je odrzucić
+            tool_copy = tool.copy()
+            if "required_tier" in tool_copy:
+                del tool_copy["required_tier"]
+            filtered_schema.append(tool_copy)
+            
+        self.tools_schema = filtered_schema
         
     def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """Kieruje wywołanie narzędzia do odpowiedniej logiki."""
         try:
+            allowed_tools = [t["function"]["name"] for t in self.tools_schema]
+            if tool_name not in allowed_tools:
+                return f'{{"error": "Narzędzie {tool_name} nie istnieje lub odmowa dostępu w obecnym trybie."}}'
+
             if tool_name == "get_devices":
                 return self._get_devices(arguments.get("domain"))
             elif tool_name == "get_device_state":

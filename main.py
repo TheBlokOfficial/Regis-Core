@@ -48,20 +48,23 @@ def main():
             continue
             
         if mode_choice == "prod":
-            selected_model = settings.get("selected_model")
+            selected_profile_id = settings.get("selected_profile")
+            profiles = config.load_profiles()
+            selected_profile = next((p for p in profiles if p["profile_id"] == selected_profile_id), None)
             
-            if not selected_model:
-                cli.console.print("[red]Brak wybranego modelu! Przejdź najpierw do Opcji, aby go ustawić.[/red]")
+            if not selected_profile:
+                cli.console.print("[red]Brak aktywnego profilu! Przejdź najpierw do Opcji, aby go ustawić.[/red]")
                 cli.console.input("\n[dim]Naciśnij Enter...[/dim]")
                 continue
                 
             llm_engine = LLMEngine(
-                model_name=selected_model,
-                temperature=settings.get("temperature", 0.5),
+                model_name=selected_profile["model_name"],
+                tier=selected_profile["tier"],
+                temperature=selected_profile.get("temperature", 0.5),
                 history_limit=settings.get("history_limit", 10)
             )
             
-            cli.run_production_loop(llm_engine, ha_client)
+            cli.run_production_loop(llm_engine, ha_client, selected_profile["name"])
 
 if __name__ == "__main__":
     main()

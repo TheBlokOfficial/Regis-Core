@@ -11,29 +11,35 @@ OLLAMA_GENERATE_URL = f"{OLLAMA_BASE_URL}/api/generate"
 OLLAMA_CHAT_URL = f"{OLLAMA_BASE_URL}/api/chat"
 OLLAMA_TAGS_URL = f"{OLLAMA_BASE_URL}/api/tags"
 
-SYSTEM_PROMPT = """Jesteś inteligentnym administratorem domu o imieniu Regis. Twoim zadaniem jest zarządzanie systemem Home Assistant i dbanie o komfort mieszkańców.
+BASE_SYSTEM_PROMPT = """Jesteś inteligentnym administratorem domu o imieniu Regis. Twoim zadaniem jest zarządzanie systemem Home Assistant i dbanie o komfort mieszkańców.
 Jesteś bezpośredni, proaktywny i decyzyjny. Kiedy użytkownik prosi o akcję (np. "włącz światła"), wykonuj ją od razu – nie dopytuj o pozwolenie ani potwierdzenie dla oczywistych poleceń.
 Masz do dyspozycji zestaw narzędzi (Tool Calling). Używaj ich zgodnie z własnym osądem, aby diagnozować stan urządzeń i realizować zlecenia. Pamiętaj: sama Twoja odpowiedź tekstowa nie wpływa na dom. Aby coś włączyć/wyłączyć, musisz fizycznie wywołać narzędzie (Tool Call). Nigdy nie informuj o wykonaniu akcji, jeśli najpierw nie uruchomiłeś narzędzia.
 Jedyna techniczna reguła: system fizyczny wymaga dokładnych identyfikatorów (entity_id) do wykonania akcji. Jeśli ich jeszcze nie znasz dla danego urządzenia, odszukaj je przy pomocy odpowiednich narzędzi przed wydaniem komendy wykonawczej.
-Po zakończeniu zadania poinformuj użytkownika o rezultacie w naturalny, zwięzły sposób (po polsku).
-"""
+Po zakończeniu zadania poinformuj użytkownika o rezultacie w naturalny, zwięzły sposób (po polsku)."""
+
+TIER_RULES = {
+    "basic": "Działasz w trybie ograniczonym (Basic). Jeśli użytkownik prosi o zaawansowaną analizę, poinformuj go, że Twoja wersja modelu jest na to za słaba.",
+    "advanced": "Jesteś zaawansowaną AI o dużej swobodzie decyzyjnej. Proaktywnie zarządzaj domem, przewiduj potrzeby i proponuj optymalizacje."
+}
 
 class LLMEngine:
     """Silnik odpowiadający za komunikację z lokalnym serwerem Ollama."""
 
-    def __init__(self, model_name: str, temperature: float = 0.5, history_limit: int = 10):
+    def __init__(self, model_name: str, tier: str, temperature: float = 0.5, history_limit: int = 10):
         """Inicjalizuje silnik z odpowiednim modelem.
         
         Args:
             model_name (str): Nazwa modelu używanego w Ollamie.
+            tier (str): Klasa modelu (np. basic lub advanced).
             temperature (float): Poziom losowości generowanych odpowiedzi.
             history_limit (int): Maksymalna liczba pamiętanych wiadomości.
         """
         self.model_name = model_name
+        self.tier = tier
         self.temperature = temperature
         self.history_limit = history_limit
         self.history = []
-        logging.info(f"Zainicjalizowano LLMEngine: Model={model_name}, Temp={temperature}, HistoryLimit={history_limit}")
+        logging.info(f"Zainicjalizowano LLMEngine: Model={model_name}, Tier={self.tier}, Temp={temperature}, HistoryLimit={history_limit}")
 
     @staticmethod
     def get_available_models() -> list[str]:
@@ -59,6 +65,70 @@ class LLMEngine:
         self.history = []
         logging.info("Wyczyszczono historię konwersacji LLM.")
 
+    def _parse_fallback_tool_calls(self, response_text: str, valid_tools: list[str], status_callback: Any = None) -> tuple[list[dict], str]:
+        """Próbuje wyciągnąć zgubione wywołania narzędzi z surowego tekstu odpowiedzi."""
+        tool_calls = []
+        extracted_jsons = []
+        stack = []
+        start_idx = -1
+        for i, char in enumerate(response_text):
+            if char == '{':
+                if not stack:
+                    start_idx = i
+                stack.append(char)
+            elif char == '}':
+                if stack:
+                    stack.pop()
+                    if not stack:
+                        json_str = response_text[start_idx:i+1]
+                        try:
+                            parsed = json.loads(json_str)
+                            if isinstance(parsed, dict):
+                                extracted_jsons.append((parsed, start_idx, i+1))
+                        except json.JSONDecodeError:
+                            pass
+        
+        message_content = response_text
+        for parsed, start_idx, end_idx in extracted_jsons:
+            matched_func = None
+            matched_args = None
+            cut_start = start_idx
+            
+            # Wzorzec A: OpenAI ({"name": "...", "arguments": {...}})
+            if "name" in parsed and "arguments" in parsed and parsed["name"] in valid_tools:
+                matched_func = parsed["name"]
+                matched_args = parsed["arguments"]
+            
+            # Wzorzec B: Qwen2.5 / Mistral (nazwa_funkcji {...})
+            else:
+                prefix = message_content[:start_idx].strip().split()
+                if prefix:
+                    potential_func = prefix[-1]
+                    if potential_func in valid_tools:
+                        matched_func = potential_func
+                        matched_args = parsed
+                        cut_start = message_content.rfind(potential_func, 0, start_idx)
+            
+            if matched_func:
+                tool_calls.append({
+                    "function": {
+                        "name": matched_func,
+                        "arguments": matched_args
+                    }
+                })
+                logging.warning(f"Zastosowano Fallback Parsowania dla narzędzia: {matched_func}")
+                if status_callback:
+                    status_callback(f"[dim]⚠ Użyto fallbacku parsowania dla {matched_func}...[/dim]")
+                    
+                # Czyszczenie przecieku z tekstu (TTS protection)
+                cleaned_text = message_content[:cut_start] + message_content[end_idx:]
+                # Oczyszczenie z resztek markdowna lub śmieciowych znaczników Qwen
+                cleaned_text = cleaned_text.replace("lashes", "").replace("```json", "").replace("```", "").replace("URING", "").strip()
+                message_content = cleaned_text
+                break
+                
+        return tool_calls, message_content
+
     def generate_response(self, prompt: str, tools_registry, status_callback: Any = None) -> str:
         """Generuje zapytanie do modelu LLM z użyciem narzędzi i historii.
         
@@ -72,7 +142,8 @@ class LLMEngine:
         Raises:
             LLMConnectionError: Jeśli wygenerowanie odpowiedzi się nie powiodło.
         """
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        prompt_to_use = f"{BASE_SYSTEM_PROMPT}\n{TIER_RULES.get(self.tier, TIER_RULES['basic'])}"
+        messages = [{"role": "system", "content": prompt_to_use}]
         messages.extend(self.history)
         messages.append({"role": "user", "content": prompt})
         
@@ -103,65 +174,10 @@ class LLMEngine:
                 # Fallback: ręczne wyciąganie wywołania narzędzia, gdy model zignoruje natywne API
                 if not tool_calls and response_text:
                     valid_tools = [t["function"]["name"] for t in tools_registry.tools_schema]
-                    
-                    # 1. Bracket Matching Parser (odporny na zagnieżdżenia)
-                    extracted_jsons = []
-                    stack = []
-                    start_idx = -1
-                    for i, char in enumerate(response_text):
-                        if char == '{':
-                            if not stack:
-                                start_idx = i
-                            stack.append(char)
-                        elif char == '}':
-                            if stack:
-                                stack.pop()
-                                if not stack:
-                                    json_str = response_text[start_idx:i+1]
-                                    try:
-                                        parsed = json.loads(json_str)
-                                        if isinstance(parsed, dict):
-                                            extracted_jsons.append((parsed, start_idx, i+1))
-                                    except json.JSONDecodeError:
-                                        pass
-                    
-                    for parsed, start_idx, end_idx in extracted_jsons:
-                        matched_func = None
-                        matched_args = None
-                        cut_start = start_idx
-                        
-                        # Wzorzec A: OpenAI ({"name": "...", "arguments": {...}})
-                        if "name" in parsed and "arguments" in parsed and parsed["name"] in valid_tools:
-                            matched_func = parsed["name"]
-                            matched_args = parsed["arguments"]
-                        
-                        # Wzorzec B: Qwen2.5 / Mistral (nazwa_funkcji {...})
-                        else:
-                            prefix = response_text[:start_idx].strip().split()
-                            if prefix:
-                                potential_func = prefix[-1]
-                                if potential_func in valid_tools:
-                                    matched_func = potential_func
-                                    matched_args = parsed
-                                    cut_start = response_text.rfind(potential_func, 0, start_idx)
-                        
-                        if matched_func:
-                            tool_calls.append({
-                                "function": {
-                                    "name": matched_func,
-                                    "arguments": matched_args
-                                }
-                            })
-                            logging.warning(f"Zastosowano Fallback Parsowania dla narzędzia: {matched_func}")
-                            if status_callback:
-                                status_callback(f"[dim]⚠ Użyto fallbacku parsowania dla {matched_func}...[/dim]")
-                                
-                            # Czyszczenie przecieku z tekstu (TTS protection)
-                            cleaned_text = response_text[:cut_start] + response_text[end_idx:]
-                            # Oczyszczenie z resztek markdowna lub śmieciowych znaczników Qwen
-                            cleaned_text = cleaned_text.replace("lashes", "").replace("```json", "").replace("```", "").replace("URING", "").strip()
-                            message["content"] = cleaned_text
-                            break
+                    extracted_tool_calls, cleaned_text = self._parse_fallback_tool_calls(response_text, valid_tools, status_callback)
+                    if extracted_tool_calls:
+                        tool_calls = extracted_tool_calls
+                        message["content"] = cleaned_text
 
                 if tool_calls:
                     for tool_call in tool_calls:
