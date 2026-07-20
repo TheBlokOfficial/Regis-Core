@@ -7,36 +7,31 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from integrations.ha_client import HomeAssistantClient
 from core.exceptions import HomeAssistantConnectionError
 from core.action_parser import parse_llm_response, execute_parsed_action
-from ui.cli import console, clear_screen, print_action_result
+from core import config
+from core.llm_engine import SYSTEM_PROMPT
+from ui.cli import console, clear_screen, print_action_result, print_production_header
 
-from rich.panel import Panel
-from rich.syntax import Syntax
 from rich.rule import Rule
 
 def main(ha_client: HomeAssistantClient):
+    settings = config.load_settings()
+    model_name = settings.get("selected_model", "WIZARD OF OZ")
+    
     while True:
         try:
             clear_screen()
-            header_panel = Panel(
-                "[dim]Jesteś modelem LLM. Analizujesz poniższy stan i zwracasz JSON komendy.[/dim]\n[dim]Wpisz 'wyjdz' aby zakończyć symulację.[/dim]", 
-                title="[yellow]SYMULATOR LLM (WIZARD OF OZ)[/yellow]", 
-                border_style="yellow"
-            )
-            console.print(header_panel)
+            print_production_header(f"{model_name} (Symulator)")
             
-            console.print(Rule("[dim]Bieżący Stan Home Assistant[/dim]", style="dim"))
             try:
                 current_state = ha_client.get_all_states()
-                syntax = Syntax(json.dumps(current_state, indent=2), "json", theme="ansi_dark", line_numbers=False)
-                console.print(syntax)
+                system_p = SYSTEM_PROMPT.replace("{ha_state}", json.dumps(current_state, indent=2))
+                console.print(f"\n[dim]{system_p}[/dim]\n")
             except HomeAssistantConnectionError as e:
                 console.print(f"[red]Błąd połączenia z HA: {e}[/red]")
-                current_state = {}
             
             console.print(Rule(style="dim"))
-            console.print("[dim]Przykładowy JSON: {\"action\": \"turn_on\", \"entity_id\": \"light.biurko\", \"parameters\": {}}[/dim]\n")
             
-            user_json_str = console.input("[bold white]Twój JSON (jako LLM):[/bold white] ")
+            user_json_str = console.input("\n[bold white]Ty:[/bold white] ")
             
             if user_json_str.strip().lower() in ['wyjdz', 'wyjscie', 'exit', 'quit']:
                 break

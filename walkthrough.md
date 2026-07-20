@@ -13,9 +13,9 @@ Regis to lokalny, prywatny system AI, pełniący rolę administratora domu. Nas�
   - `ha_client.py`: Klient HTTP komunikujący się z zewnętrznym REST API Home Assistanta (oparty na bibliotece `requests`).
   - `ha_mock.py`: Moduł mockujący zachowanie serwera HA.
 - `ui/`:
-  - `cli.py`: Warstwa prezentacji, odpowiedzialna za terminalowe menu graficzne w oparciu o biblioteki `rich` i `questionary`.
+  - `cli.py`: Warstwa prezentacji, odpowiedzialna za terminalowe menu graficzne w oparciu o biblioteki `rich` i `questionary` (odświeżony, minimalistyczny UX bez jaskrawych paneli i kolorów).
 - `tools/`:
-  - `symulator_llm.py`: Skrypt developerski umożliwiający ręczne wysyłanie JSON-ów do parsera aplikacji celem debugowania (tzw. Wizard of Oz).
+  - `symulator_llm.py`: Skrypt developerski umożliwiający ręczne wysyłanie JSON-ów do parsera aplikacji celem debugowania (tzw. Wizard of Oz). Zunifikowany wizualnie z UI produkcyjnym, umożliwia podgląd pełnego uformowanego promptu systemowego.
 - `tests/`:
   - Katalog zawierający testy jednostkowe w oparciu o środowisko `pytest` (np. `test_config.py`, `test_ha_mock.py`).
 - `data/`: Katalog przeznaczony na logi (`regis.log`) oraz pliki konfiguracyjne (`settings.json`, `aliases.json`, `active_models.json`, `ha_state.json`). Wyłączony z repozytorium.
@@ -32,3 +32,4 @@ Regis to lokalny, prywatny system AI, pełniący rolę administratora domu. Nas�
 1. System Pamięci Kontekstowej: Dodanie bufora i logiki do zachowywania historii konwersacji między cyklami (włączenie pamięci dla LLM, by rozumiał zapytania oparte o poprzednie interakcje).
 2. Agentic Tools: Ekstrakcja operacji na Home Assistant do zunifikowanego systemu narzędzi (Tool Calling), aby model mógł w przyszłości wzywać inne funkcje (np. sprawdzanie pogody z osobnego API).
 3. Integracja WakeWord: Moduł serwerowy do obróbki bezpośredniego strumienia audio wpadającego od satelitów (ESP32).
+4. Optymalizacja Promptu Modelu ("Czyszczenie biurka"): Przefiltrowanie zrzutu JSON stanu urządzeń przed wstrzyknięciem do promptu (np. usuwanie stanów `unavailable`, zbędnych atrybutów), co zredukuje zużycie tokenów i dezinformację modelu.

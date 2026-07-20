@@ -1,7 +1,7 @@
 import os
 import questionary
+from questionary import Style
 from rich.console import Console
-from rich.panel import Panel
 from rich.rule import Rule
 
 from integrations.ha_client import HomeAssistantClient
@@ -12,12 +12,25 @@ from core.action_parser import parse_llm_response, execute_parsed_action
 
 console = Console()
 
+custom_style = Style([
+    ('qmark', 'fg:ansigray bold'),
+    ('question', 'bold'),
+    ('answer', 'fg:white bold'),
+    ('pointer', 'fg:white bold'),
+    ('highlighted', 'fg:white bold'),
+    ('selected', 'fg:white bold'),
+    ('separator', 'fg:ansigray'),
+    ('instruction', 'fg:ansigray'),
+    ('text', ''),
+])
+
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def manage_models_flow(available_models: list[str], current_active: list[str]):
     clear_screen()
-    console.print(Panel.fit("[bold yellow]ZARZĄDZANIE WIDOCZNYMI MODELAMI[/bold yellow]", border_style="yellow"))
+    console.print("[bold white]ZARZĄDZANIE WIDOCZNYMI MODELAMI[/bold white]")
+    console.print(Rule(style="dim"))
     
     choices = []
     for m in sorted(available_models):
@@ -25,7 +38,8 @@ def manage_models_flow(available_models: list[str], current_active: list[str]):
         
     new_active = questionary.checkbox(
         "Zaznacz modele, które mają być widoczne w głównym menu (Spacja - zaznacz, Enter - zapisz):",
-        choices=choices
+        choices=choices,
+        style=custom_style
     ).ask()
     
     if new_active is not None:
@@ -37,7 +51,8 @@ def options_flow():
     settings = config.load_settings()
     while True:
         clear_screen()
-        console.print(Panel.fit("[bold cyan]USTAWIENIA REGIS CORE[/bold cyan]", border_style="cyan"))
+        console.print("[bold white]USTAWIENIA REGIS CORE[/bold white]")
+        console.print(Rule(style="dim"))
         
         current_model = settings.get("selected_model")
         display_model = current_model if current_model else "Brak"
@@ -56,7 +71,8 @@ def options_flow():
                 questionary.Choice(title=title_manage, value="manage"),
                 questionary.Separator(" "),
                 questionary.Choice(title="Wróć do menu głównego", value="back")
-            ]
+            ],
+            style=custom_style
         ).ask()
         
         if choice == "back" or not choice:
@@ -64,7 +80,11 @@ def options_flow():
             break
             
         if choice == "temp":
-            temp_str = questionary.text("Podaj nową temperaturę (np. 0.0 - 1.0):", default=str(current_temp)).ask()
+            temp_str = questionary.text(
+                "Podaj nową temperaturę (np. 0.0 - 1.0):", 
+                default=str(current_temp),
+                style=custom_style
+            ).ask()
             try:
                 new_temp = float(temp_str)
                 settings["temperature"] = new_temp
@@ -101,7 +121,8 @@ def options_flow():
                     
                 model_choice = questionary.select(
                     "Wybierz model docelowy:",
-                    choices=[questionary.Separator(" ")] + [questionary.Choice(title=m, value=m) for m in valid_active] + [questionary.Separator(" "), questionary.Choice(title="Anuluj", value="cancel")]
+                    choices=[questionary.Separator(" ")] + [questionary.Choice(title=m, value=m) for m in valid_active] + [questionary.Separator(" "), questionary.Choice(title="Anuluj", value="cancel")],
+                    style=custom_style
                 ).ask()
                 
                 if model_choice and model_choice != "cancel":
@@ -143,14 +164,13 @@ def print_action_result(result):
         console.print(f"[bold white]Regis:[/bold white] {result.reply}")
 
 
+def print_production_header(model_name: str):
+    console.print(f"[bold white]REGIS CORE[/bold white] [dim]| Model: {model_name} | Komenda: 'wyjdz'[/dim]")
+    console.print(Rule(style="dim"))
+
 def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient):
     clear_screen()
-    header_panel = Panel(
-        f"Model: [bold]{llm_engine.model_name}[/bold] | Komenda: 'wyjdz'", 
-        title="[cyan]REGIS CORE[/cyan]", 
-        border_style="cyan"
-    )
-    console.print(header_panel)
+    print_production_header(llm_engine.model_name)
     
     while True:
         try:
@@ -176,7 +196,7 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient):
                     continue
             
             clear_screen()
-            console.print(header_panel)
+            print_production_header(llm_engine.model_name)
             
             console.print(f"\n[bold white]Ty:[/bold white] {user_input}\n")
             
@@ -189,7 +209,8 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient):
 def run_main_menu():
     """Główne menu zwracające wybór użytkownika, by plik główny mógł podjąć decyzję."""
     clear_screen()
-    console.print(Panel.fit("[bold cyan]REGIS CORE - MENU GŁÓWNE[/bold cyan]", border_style="cyan"))
+    console.print("[bold white]REGIS CORE - MENU GŁÓWNE[/bold white]")
+    console.print(Rule(style="dim"))
     
     mode_choice = questionary.select(
         "Wybierz tryb uruchomienia systemu:",
@@ -200,7 +221,8 @@ def run_main_menu():
             questionary.Choice(title="Opcje", value="options"),
             questionary.Separator(" "),
             questionary.Choice(title="Wyjście", value="exit")
-        ]
+        ],
+        style=custom_style
     ).ask()
     
     return mode_choice
