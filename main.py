@@ -40,9 +40,9 @@ def main():
 
 
         if mode_choice == "prod":
-            active_tier = settings.get("active_tier", "local")
+            active_tier = settings.get("active_tier", "butler")
             
-            if active_tier == "local":
+            if active_tier == "butler":
                 model_name = "qwen2.5:7b"
                 temperature = 0.7
                 display_name = "Lokaj"

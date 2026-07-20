@@ -15,7 +15,7 @@ def load_settings() -> dict[str, Any]:
         dict[str, Any]: Słownik z konfiguracją systemu.
     """
     default_settings = {
-        "active_tier": "local", 
+        "active_tier": "butler", 
         "history_limit": 10,
         "ha_url": "http://192.168.0.50:8123",
         "ha_token": "TWÓJ_TOKEN_TUTAJ"

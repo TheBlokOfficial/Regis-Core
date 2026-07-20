@@ -6,6 +6,7 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 * Wydzielono założenia projektowe z `AGENTS.md` do dedykowanego pliku `docs/ARCHITECTURE.md` (Zasada Apple, RPi5 dla `qwen2.5:7b` oraz PC dla `qwen2.5:14b`).
 * Usunięto cały stary system profili (`profiles.json`) oraz zrefaktoryzowano architekturę tak, aby działała w oparciu o sztywno zdefiniowane warstwy (tier): `local` (Recepcjonista) i `boss` (Główny Gospodarz).
 * Wyekstraktowano wszystkie prompty psychologiczne z kodu Pythonowego do plików Markdown (`data/prompts/`). Baza jest oddzielona od charyzmatycznego Regisa i surowego Lokaja. Silnik ładuje je używając Lazy Loadingu.
+* Poprawiono nomenklaturę systemu: warstwy zostały przemianowane w kodzie i plikach z `local`/`boss` na `butler`/`regis`. Zablokowano w profilu `tier_regis.md` możliwość uciążliwego "chwalenia się" swoimi narzędziami.
 * Wdrożono "Solid-State AI" (Dynamic Deduction). Agent nie otrzymuje już listy urządzeń w system promptcie (puste biurko). Jeśli zmyśli encję, The Warden odbija akcję żądając od niego zbadania środowiska przez narzędzie `get_devices`.
 * Usunięto błędy terminalowe, naprawiając znikające myśli i podwójne entery. Wprowadzono architekturę "Infinite Scrolling REPL" w miejsce wymazywanego ekranu.
 
