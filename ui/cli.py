@@ -49,7 +49,8 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
     
     while True:
         try:
-            user_input = console.input("\n[bold white]Ty:[/bold white] ")
+            now_input = datetime.datetime.now().strftime("%H:%M:%S")
+            user_input = console.input(f"[dim green][{now_input}][/dim green] [bold white]Ty:[/bold white] ")
             if user_input.lower() == "/exit":
                 break
                 
@@ -58,7 +59,7 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                 console.print("[dim]/help[/dim] - [dim]Wyświetla tę listę komend[/dim]")
                 console.print("[dim]/exit[/dim] - [dim]Kończy działanie programu[/dim]")
                 console.print("[dim]/clear[/dim] - [dim]Czyści historię bieżącej konwersacji[/dim]")
-                console.print("[dim]/tier[/dim] - [dim]Przełącza pomiędzy warstwą lokalną a Szefem na obecną sesję[/dim]\n")
+                console.print("[dim]/tier[/dim] - [dim]Przełącza pomiędzy Lokajem a Regisem na obecną sesję[/dim]\n")
                 console.input("[dim]Naciśnij Enter, aby kontynuować...[/dim]")
                 clear_screen()
                 print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
@@ -76,12 +77,12 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                     llm_engine.tier = "boss"
                     llm_engine.model_name = "qwen2.5:14b"
                     llm_engine.temperature = 0.7
-                    display_name = "Szef (Główny Gospodarz)"
+                    display_name = "Regis"
                 else:
                     llm_engine.tier = "local"
                     llm_engine.model_name = "qwen2.5:7b"
                     llm_engine.temperature = 0.5
-                    display_name = "Recepcjonista (Lokalny)"
+                    display_name = "Lokaj"
                     
                 tools_registry = ToolsRegistry(ha_client, llm_engine.tier)
                 settings = config.load_settings()
@@ -96,65 +97,53 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
             if not user_input.strip():
                 continue
                 
-            clear_screen()
-            print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
-            
-            for msg in llm_engine.history:
-                if msg.get("is_internal"):
-                    continue
+            console.print("")
                 
-                ts = msg.get("timestamp", "")
-                ts_str = f"[dim green][{ts}][/dim green] " if ts else ""
-                
-                if msg["role"] == "user":
-                    console.print(f"\n{ts_str}[bold white]Ty:[/bold white] {msg['content']}\n", highlight=False)
-                elif msg["role"] == "assistant":
-                    console.print(f"{ts_str}[bold white]Regis:[/bold white] {msg['content']}", highlight=False)
-                elif msg["role"] == "tool_log":
-                    console.print(f"{ts_str}[dim]{msg['content']}[/dim]", highlight=False)
-                        
-            now = datetime.datetime.now().strftime("%H:%M:%S")
-            console.print(f"\n[dim green][{now}][/dim green] [bold white]Ty:[/bold white] {user_input}\n", highlight=False)
-                
-            status = console.status("[dim]Regis analizuje żądanie...[/dim]", spinner="dots")
-            status.start()
-            
-            first_token_received = False
+            first_regis_token = False
+            first_scratchpad_token = False
             
             def status_update(msg_text):
-                nonlocal first_token_received
-                if first_token_received:
-                    print() # Zamknięcie poprzedniej linii z tekstem
-                    first_token_received = False
-                status.stop()
+                nonlocal first_regis_token, first_scratchpad_token
+                if first_regis_token or first_scratchpad_token:
+                    print()
+                    first_regis_token = False
+                    first_scratchpad_token = False
                 ts_now = datetime.datetime.now().strftime("%H:%M:%S")
                 console.print(f"[dim green][{ts_now}][/dim green] [dim]{msg_text}[/dim]", highlight=False)
-                status.start()
+                console.print("")
                 
-            def stream_update(token: str):
-                nonlocal first_token_received
-                if not first_token_received:
-                    if not token.strip():
-                        return
-                    status.stop()
-                    now_regis = datetime.datetime.now().strftime("%H:%M:%S")
-                    console.print(f"[dim green][{now_regis}][/dim green] [bold white]Regis:[/bold white] ", end="", highlight=False)
-                    first_token_received = True
-                print(token, end="", flush=True)
+            def stream_update(token: str, is_scratchpad: bool = False):
+                nonlocal first_regis_token, first_scratchpad_token
+                if not token.strip() and not (first_regis_token or first_scratchpad_token):
+                    return
+                
+                if is_scratchpad:
+                    if not first_scratchpad_token:
+                        ts_now = datetime.datetime.now().strftime("%H:%M:%S")
+                        console.print(f"[dim green][{ts_now}][/dim green] [dim]🧠 Myśli agenta:[/dim] ", end="", highlight=False)
+                        first_scratchpad_token = True
+                    console.print(f"[dim]{token}[/dim]", end="", highlight=False)
+                else:
+                    if not first_regis_token:
+                        if first_scratchpad_token:
+                            print()
+                            console.print("")
+                        now_regis = datetime.datetime.now().strftime("%H:%M:%S")
+                        console.print(f"[dim green][{now_regis}][/dim green] [bold white]Regis:[/bold white] ", end="", highlight=False)
+                        first_regis_token = True
+                    print(token, end="", flush=True)
 
             try:
                 response_text = llm_engine.generate_response(user_input, tools_registry, status_update, stream_update)
             except (HomeAssistantConnectionError, LLMConnectionError) as e:
-                status.stop()
                 console.print(f"\n[red]Błąd systemu (Połączenie): {e}[/red]", highlight=False)
                 import logging
                 logging.exception("Błąd w trakcie analizy otoczenia/LLM.")
                 continue
-            finally:
-                status.stop()
             
-            if first_token_received:
+            if first_regis_token or first_scratchpad_token:
                 print()
+                console.print("")
                 
         except KeyboardInterrupt:
             console.print("\n[dim]Zamykam system Regis.[/dim]")

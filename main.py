@@ -44,17 +44,18 @@ def main():
             
             if active_tier == "local":
                 model_name = "qwen2.5:7b"
-                temperature = 0.5
-                display_name = "Recepcjonista (Lokalny)"
+                temperature = 0.7
+                display_name = "Lokaj"
             else:
                 model_name = "qwen2.5:14b"
                 temperature = 0.7
-                display_name = "Szef (Główny Gospodarz)"
+                display_name = "Regis"
                 
             llm_engine = LLMEngine(
                 model_name=model_name,
                 tier=active_tier,
                 temperature=temperature,
+                tool_temperature=0.1,
                 history_limit=settings.get("history_limit", 10)
             )
             

@@ -25,3 +25,8 @@ Aplikacja jest oparta o współpracę dwóch jednostek. Cała codzienna interakc
 
 ### Mechanizm "Handoff"
 Gdy "Recepcjonista" na Raspberry Pi 5 napotka zbyt trudne zadanie, używa narzędzia (np. `call_boss()`). Regis-Core samodzielnie sprawdza w tle (usługa telemetryczna), które komputery PC są włączone i mają wolne zasoby VRAM. Następnie wysyła prośbę wraz z pełnym kontekstem konwersacji do instancji Ollamy na Desktopie, ładuje model "Szefa", odbiera wynik i zwalnia zasoby PC, aby nie przeszkadzać w graniu czy pracy na komputerze głównym.
+
+## Paradygmat Agentowy (Zasada CoT)
+Regis-Core i zawarte w nim byty (Lokaj, Regis) nie są standardowymi LLM służącymi "do plucia tekstem". Są pełnoprawnymi Agentami operującymi w pętli myślowej **ReAct (Reasoning and Acting)**.
+Zabrania się ucinania narzędzi lub odłączania logiki podczas faz konwersacyjnych. Agent w każdym momencie swojego działania ma prawo do "pomylenia się", uświadomienia sobie błędu (otrzymania logu o błędzie od narzędzia) i wykonania auto-korekcji za pomocą kolejnych wywołań w tle (Chain of Thought), ZANIM przedstawi ostateczną, gotową odpowiedź człowiekowi.
+W tym celu, komunikaty błędów po stronie narzędzi nie mogą "uświadamiać" użytkownika. Zawsze mają być kierowane wyłącznie do Agenta w formie wewnętrznej reprymendy (`BŁĄD WEWNĘTRZNY, wykonaj akcję naprawczą`), nakazującej Agentowi rozwiązać problem zanim wyjdzie z pętli.

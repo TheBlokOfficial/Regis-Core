@@ -9,7 +9,7 @@ def test_load_settings_defaults():
     
     try:
         settings = config.load_settings()
-        assert settings["temperature"] == 0.5
+        assert settings["active_tier"] == "local"
         assert settings["ha_url"] == "http://192.168.0.50:8123"
     finally:
         config.SETTINGS_FILE = original_file

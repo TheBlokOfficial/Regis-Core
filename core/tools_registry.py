@@ -77,19 +77,22 @@ class ToolsRegistry:
         except Exception:
             states = {}
             
+        if action not in ["turn_on", "turn_off", "toggle"]:
+            return json.dumps({"error": f"Invalid Action Error. You provided '{action}'. Only 'turn_on', 'turn_off', and 'toggle' are allowed. Fix your JSON and use 'turn_on' if you meant to change brightness/color."}, ensure_ascii=False)
+
         if isinstance(entity_id, list):
             invalid_ids = [eid for eid in entity_id if eid not in states]
             if invalid_ids:
-                return json.dumps({"result": "error", "message": f"Błąd: Podane ID {invalid_ids} nie istnieją w systemie! Zanim zgadniesz ID, musisz użyć narzędzia 'get_devices'. WYGENERUJ TERAZ blok JSON wywołujący get_devices, nie tłumacz się użytkownikowi!"}, ensure_ascii=False)
+                return json.dumps({"error": f"Invalid Entity Error. You provided non-existent IDs: {invalid_ids}. You MUST use 'get_devices' tool first to find correct entity IDs before trying to execute action."}, ensure_ascii=False)
         elif isinstance(entity_id, str):
             if entity_id not in states:
-                return json.dumps({"result": "error", "message": f"Błąd: Urządzenie o ID '{entity_id}' nie istnieje w systemie! Zanim zgadniesz ID, musisz użyć narzędzia 'get_devices'. WYGENERUJ TERAZ blok JSON wywołujący get_devices, nie pisz wymówek!"}, ensure_ascii=False)
+                return json.dumps({"error": f"Invalid Entity Error. You provided non-existent ID: '{entity_id}'. You MUST use 'get_devices' tool first to find correct entity IDs before trying to execute action."}, ensure_ascii=False)
                 
         success = self.ha_client.execute_action(action, entity_id, parameters)
         if success:
             return json.dumps({"result": "success", "message": f"Wykonano akcję {action} na {entity_id}."})
         else:
-            return json.dumps({"result": "error", "message": f"Nie udało się wykonać {action} na {entity_id}."})
+            return json.dumps({"error": f"Execution Failed. Action {action} failed to apply on {entity_id}. Ensure parameters are correct for this device type."})
 
     def _get_current_time(self) -> str:
         import datetime

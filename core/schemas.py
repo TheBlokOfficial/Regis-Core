@@ -4,7 +4,7 @@ BASE_TOOLS_SCHEMA = [
         "required_tier": "basic",
         "function": {
             "name": "get_devices",
-            "description": "Zwraca listę dostępnych urządzeń w systemie (np. nazwy świateł, przełączników). Użyj tego, by sprawdzić, czym możesz sterować.",
+            "description": "Zwraca listę dostępnych urządzeń w systemie (np. nazwy świateł, przełączników). Zawsze używaj tego narzędzia przed próbą manipulacji nowym urządzeniem, by poznać poprawne entity_id.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -40,13 +40,14 @@ BASE_TOOLS_SCHEMA = [
         "required_tier": "basic",
         "function": {
             "name": "execute_ha_action",
-            "description": "Wykonuje fizyczną akcję na urządzeniu. Opcjonalnie podaj parameters np. {'brightness_pct': 50}.",
+            "description": "Wykonuje fizyczną akcję na urządzeniach. NIGDY nie zgaduj entity_id! Zawsze najpierw wywołaj narzędzie `get_devices`, przeczytaj wyniki i dopiero z nich skopiuj właściwe identyfikatory. Jeśli używasz parametrów (np. zmiana jasności oświetlenia), akcja zawsze musi być ustawiona na 'turn_on'.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "description": "Typ akcji, np. 'turn_on' lub 'turn_off'."
+                        "enum": ["turn_on", "turn_off", "toggle"],
+                        "description": "Typ akcji. DOZWOLONE SĄ WYŁĄCZNIE WARTOSCI: 'turn_on', 'turn_off', 'toggle'. NIE UŻYWAJ INNYCH."
                     },
                     "entity_id": {
                         "type": ["string", "array"],
