@@ -116,5 +116,5 @@ class HomeAssistantClient:
             logging.debug(f"[HA CLIENT] Pomyślnie wysłano akcję {service} dla {entity_id}.")
             return True
         except RequestException as e:
-            logging.error(f"[BŁĄD HA] Wykonanie akcji odrzucone: {e}")
-            raise HomeAssistantConnectionError(f"Home Assistant odrzucił akcję: {e}")
+            logging.error(f"[BŁĄD HA] Wykonanie akcji odrzucone dla payloadu {payload_dict}: {e}")
+            raise HomeAssistantConnectionError(f"Home Assistant odrzucił akcję dla {entity_id}: {e}")

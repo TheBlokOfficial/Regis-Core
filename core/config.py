@@ -18,6 +18,7 @@ def load_settings() -> dict[str, Any]:
     default_settings = {
         "selected_model": None, 
         "temperature": 0.5,
+        "history_limit": 10,
         "ha_url": "http://192.168.0.50:8123",
         "ha_token": "TWÓJ_TOKEN_TUTAJ"
     }

@@ -8,7 +8,7 @@ from integrations.ha_client import HomeAssistantClient
 from core.llm_engine import LLMEngine
 from core.exceptions import HomeAssistantConnectionError, LLMConnectionError
 from core import config
-from core.action_parser import parse_llm_response, execute_parsed_action
+from core.tools_registry import ToolsRegistry
 
 console = Console()
 
@@ -132,36 +132,6 @@ def options_flow():
                 console.print(f"[red]Błąd serwera LLM: {e}[/red]")
                 console.input("\n[dim]Naciśnij Enter...[/dim]")
 
-def print_action_result(result):
-    """Zajmuje się wyłącznie renderowaniem wyniku w terminalu."""
-    if not result.is_valid:
-        console.print(f"[red]BŁĄD: {result.error}[/red]")
-        return
-        
-    if result.action != "none" and result.entity_id != "none":
-        console.print(Rule("[dim]Wykryta Intencja (System)[/dim]", style="dim"))
-        
-        if isinstance(result.entity_id, list):
-            entity_str = f"Wiele urządzeń ({len(result.entity_id)}x)"
-        else:
-            entity_str = str(result.entity_id)
-            
-        console.print(f"[dim] Akcja: {result.action} | Cel: {entity_str} | Param: {result.parameters}[/dim]")
-        
-        if result.ha_execution_attempted:
-            if result.ha_success:
-                console.print("[dim] ✓ Pomyślnie wysterowano sprzętem.[/dim]")
-            else:
-                if result.ha_error_msg:
-                    console.print(f"[red] ✗ Błąd komunikacji: {result.ha_error_msg}[/red]")
-                else:
-                    console.print("[red] ✗ Odmowa ze strony sprzętu lub niewłaściwa encja.[/red]")
-                    
-        console.print(Rule(style="dim"))
-        console.print()
-            
-    if result.reply:
-        console.print(f"[bold white]Regis:[/bold white] {result.reply}")
 
 
 def print_production_header(model_name: str):
@@ -171,6 +141,7 @@ def print_production_header(model_name: str):
 def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient):
     clear_screen()
     print_production_header(llm_engine.model_name)
+    tools_registry = ToolsRegistry(ha_client)
     
     while True:
         try:
@@ -178,29 +149,40 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient):
             if user_input.lower() in ["wyjscie", "wyjdz", "exit", "quit"]:
                 break
                 
+            if user_input.lower() in ["reset", "zapomnij"]:
+                llm_engine.clear_history()
+                clear_screen()
+                print_production_header(llm_engine.model_name)
+                console.print("\n[dim]Pamięć podręczna modelu została wyczyszczona.[/dim]")
+                continue
+                
             if not user_input.strip():
                 continue
                 
-            with console.status("[dim]Regis analizuje otoczenie...[/dim]", spinner="dots"):
+            clear_screen()
+            print_production_header(llm_engine.model_name)
+            
+            for msg in llm_engine.history:
+                if msg["role"] == "user":
+                    console.print(f"\n[bold white]Ty:[/bold white] {msg['content']}")
+                elif msg["role"] == "assistant":
+                    console.print(f"[bold white]Regis:[/bold white] {msg['content']}")
+                        
+            console.print(f"\n[bold white]Ty:[/bold white] {user_input}\n")
+                
+            with console.status("[dim]Regis analizuje żądanie...[/dim]", spinner="dots"):
+                def status_update(msg):
+                    console.print(f"[dim]{msg}[/dim]")
+                    
                 try:
-                    current_state = ha_client.get_all_states()
-                    raw_response = llm_engine.generate_response(user_input, current_state)
-                    
-                    parsed_result = parse_llm_response(raw_response)
-                    parsed_result = execute_parsed_action(parsed_result, ha_client)
-                    
+                    response_text = llm_engine.generate_response(user_input, tools_registry, status_update)
                 except (HomeAssistantConnectionError, LLMConnectionError) as e:
                     console.print(f"\n[red]Błąd systemu (Połączenie): {e}[/red]")
                     import logging
                     logging.exception("Błąd w trakcie analizy otoczenia/LLM.")
                     continue
             
-            clear_screen()
-            print_production_header(llm_engine.model_name)
-            
-            console.print(f"\n[bold white]Ty:[/bold white] {user_input}\n")
-            
-            print_action_result(parsed_result)
+            console.print(f"[bold white]Regis:[/bold white] {response_text}")
                 
         except KeyboardInterrupt:
             console.print("\n[dim]Zamykam system Regis.[/dim]")

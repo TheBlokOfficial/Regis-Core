@@ -8,49 +8,32 @@ from core.exceptions import LLMConnectionError
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_GENERATE_URL = f"{OLLAMA_BASE_URL}/api/generate"
+OLLAMA_CHAT_URL = f"{OLLAMA_BASE_URL}/api/chat"
 OLLAMA_TAGS_URL = f"{OLLAMA_BASE_URL}/api/tags"
 
-SYSTEM_PROMPT = """Jesteś inteligentnym lokajem domowym o imieniu Regis.
-Oto obecny stan domu (w formacie JSON):
-{ha_state}
-
-Zasada Krytyczna: TWOJA ODPOWIEDŹ ZAWSZE MUSI BYĆ W FORMACIE JSON. Nigdy nie pisz zwykłego tekstu!
-Struktura Twojej odpowiedzi musi wyglądać dokładnie tak:
-{
-  "action": "turn_on" | "turn_off" | "none",
-  "entity_id": "<TUTAJ_WPISZ_DOKŁADNE_ID_ENCJI_ZE_STANU_DOMU>" | "none",
-  "parameters": {"brightness_pct": 10}, 
-  "reply": "Tutaj krótko i zwięźle napisz to, co odpowiadasz na głos po polsku."
-}
-*Uwaga: Klucz 'parameters' dodawaj tylko, gdy użytkownik prosi o zmianę jasności:
-- użyj `brightness_pct: 30` aby ustawić jasność dokładnie na 30%
-- użyj `brightness_step_pct: 10` aby zwiększyć obecną jasność o 10% (lub -10 aby zmniejszyć o 10%).
-Jeśli nie ma takich wymagań, daj po prostu pusty obiekt {}.
-
-Przykłady:
-Użytkownik: Włącz telewizor.
-Wygeneruj: {"action": "turn_on", "entity_id": "media_player.telewizor_w_sypialni", "parameters": {}, "reply": "Zrobiłem to."}
-
-Użytkownik: Włącz światło w salonie na 30%.
-Wygeneruj: {"action": "turn_on", "entity_id": "light.salon", "parameters": {"brightness_pct": 30}, "reply": "Zrobiłem to."}
-
-Użytkownik: Siema, co tam?
-Wygeneruj: {"action": "none", "entity_id": "none", "parameters": {}, "reply": "Witaj! Czekam na Twoje polecenia."}
+SYSTEM_PROMPT = """Jesteś inteligentnym administratorem domu o imieniu Regis. Twoim zadaniem jest zarządzanie systemem Home Assistant i dbanie o komfort mieszkańców.
+Jesteś bezpośredni, proaktywny i decyzyjny. Kiedy użytkownik prosi o akcję (np. "włącz światła"), wykonuj ją od razu – nie dopytuj o pozwolenie ani potwierdzenie dla oczywistych poleceń.
+Masz do dyspozycji zestaw narzędzi (Tool Calling). Używaj ich zgodnie z własnym osądem, aby diagnozować stan urządzeń i realizować zlecenia. Pamiętaj: sama Twoja odpowiedź tekstowa nie wpływa na dom. Aby coś włączyć/wyłączyć, musisz fizycznie wywołać narzędzie (Tool Call). Nigdy nie informuj o wykonaniu akcji, jeśli najpierw nie uruchomiłeś narzędzia.
+Jedyna techniczna reguła: system fizyczny wymaga dokładnych identyfikatorów (entity_id) do wykonania akcji. Jeśli ich jeszcze nie znasz dla danego urządzenia, odszukaj je przy pomocy odpowiednich narzędzi przed wydaniem komendy wykonawczej.
+Po zakończeniu zadania poinformuj użytkownika o rezultacie w naturalny, zwięzły sposób (po polsku).
 """
 
 class LLMEngine:
     """Silnik odpowiadający za komunikację z lokalnym serwerem Ollama."""
 
-    def __init__(self, model_name: str, temperature: float = 0.5):
+    def __init__(self, model_name: str, temperature: float = 0.5, history_limit: int = 10):
         """Inicjalizuje silnik z odpowiednim modelem.
         
         Args:
             model_name (str): Nazwa modelu używanego w Ollamie.
             temperature (float): Poziom losowości generowanych odpowiedzi.
+            history_limit (int): Maksymalna liczba pamiętanych wiadomości.
         """
         self.model_name = model_name
         self.temperature = temperature
-        logging.info(f"Zainicjalizowano LLMEngine: Model={model_name}, Temp={temperature}")
+        self.history_limit = history_limit
+        self.history = []
+        logging.info(f"Zainicjalizowano LLMEngine: Model={model_name}, Temp={temperature}, HistoryLimit={history_limit}")
 
     @staticmethod
     def get_available_models() -> list[str]:
@@ -71,37 +54,144 @@ class LLMEngine:
             logging.error(f"Nie można połączyć się z serwerem Ollama: {e}")
             raise LLMConnectionError(f"Ollama API Error: {e}")
 
-    def generate_response(self, prompt: str, ha_state: dict[str, Any]) -> str:
-        """Generuje zapytanie do modelu LLM i formatuje odpowiedź.
+    def clear_history(self) -> None:
+        """Czyszczenie lokalnej historii konwersacji."""
+        self.history = []
+        logging.info("Wyczyszczono historię konwersacji LLM.")
+
+    def generate_response(self, prompt: str, tools_registry, status_callback: Any = None) -> str:
+        """Generuje zapytanie do modelu LLM z użyciem narzędzi i historii.
         
         Args:
             prompt (str): Polecenie od użytkownika.
-            ha_state (dict[str, Any]): Aktualny stan urządzeń Home Assistanta.
+            tools_registry: Instancja rejestru narzędzi.
+            status_callback (callable): Funkcja wywoływana z informacją o używanych narzędziach.
             
         Returns:
-            str: JSON w postaci stringa zwrócony przez model.
+            str: Tekstowa odpowiedź od modelu.
         Raises:
             LLMConnectionError: Jeśli wygenerowanie odpowiedzi się nie powiodło.
         """
-        system_p = SYSTEM_PROMPT.replace("{ha_state}", json.dumps(ha_state, indent=2))
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages.extend(self.history)
+        messages.append({"role": "user", "content": prompt})
         
-        payload = {
-            "model": self.model_name,
-            "prompt": prompt,
-            "system": system_p,
-            "stream": False,
-            "format": "json",
-            "options": {
-                "temperature": self.temperature
+        self.history.append({"role": "user", "content": prompt})
+        
+        while True:
+            payload = {
+                "model": self.model_name,
+                "messages": messages,
+                "stream": False,
+                "tools": tools_registry.tools_schema,
+                "options": {
+                    "temperature": self.temperature
+                }
             }
-        }
-        
-        try:
-            logging.debug(f"Wysyłam prompt do Ollamy ({self.model_name}): {prompt}")
-            response = requests.post(OLLAMA_GENERATE_URL, json=payload, timeout=30)
-            response.raise_for_status()
-            result = response.json()
-            return result.get("response", "")
-        except RequestException as e:
-            logging.error(f"Ollama Generation Error: {e}")
-            raise LLMConnectionError(f"Nie udało się wygenerować odpowiedzi od modelu: {e}")
+            
+            try:
+                response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=30)
+                response.raise_for_status()
+                result = response.json()
+                
+                message = result.get("message", {})
+                messages.append(message)
+                
+                tool_calls = message.get("tool_calls", [])
+                response_text = message.get("content", "")
+                
+                # Fallback: ręczne wyciąganie wywołania narzędzia, gdy model zignoruje natywne API
+                if not tool_calls and response_text:
+                    valid_tools = [t["function"]["name"] for t in tools_registry.tools_schema]
+                    
+                    # 1. Bracket Matching Parser (odporny na zagnieżdżenia)
+                    extracted_jsons = []
+                    stack = []
+                    start_idx = -1
+                    for i, char in enumerate(response_text):
+                        if char == '{':
+                            if not stack:
+                                start_idx = i
+                            stack.append(char)
+                        elif char == '}':
+                            if stack:
+                                stack.pop()
+                                if not stack:
+                                    json_str = response_text[start_idx:i+1]
+                                    try:
+                                        parsed = json.loads(json_str)
+                                        if isinstance(parsed, dict):
+                                            extracted_jsons.append((parsed, start_idx, i+1))
+                                    except json.JSONDecodeError:
+                                        pass
+                    
+                    for parsed, start_idx, end_idx in extracted_jsons:
+                        matched_func = None
+                        matched_args = None
+                        cut_start = start_idx
+                        
+                        # Wzorzec A: OpenAI ({"name": "...", "arguments": {...}})
+                        if "name" in parsed and "arguments" in parsed and parsed["name"] in valid_tools:
+                            matched_func = parsed["name"]
+                            matched_args = parsed["arguments"]
+                        
+                        # Wzorzec B: Qwen2.5 / Mistral (nazwa_funkcji {...})
+                        else:
+                            prefix = response_text[:start_idx].strip().split()
+                            if prefix:
+                                potential_func = prefix[-1]
+                                if potential_func in valid_tools:
+                                    matched_func = potential_func
+                                    matched_args = parsed
+                                    cut_start = response_text.rfind(potential_func, 0, start_idx)
+                        
+                        if matched_func:
+                            tool_calls.append({
+                                "function": {
+                                    "name": matched_func,
+                                    "arguments": matched_args
+                                }
+                            })
+                            logging.warning(f"Zastosowano Fallback Parsowania dla narzędzia: {matched_func}")
+                            if status_callback:
+                                status_callback(f"[dim]⚠ Użyto fallbacku parsowania dla {matched_func}...[/dim]")
+                                
+                            # Czyszczenie przecieku z tekstu (TTS protection)
+                            cleaned_text = response_text[:cut_start] + response_text[end_idx:]
+                            # Oczyszczenie z resztek markdowna lub śmieciowych znaczników Qwen
+                            cleaned_text = cleaned_text.replace("lashes", "").replace("```json", "").replace("```", "").replace("URING", "").strip()
+                            message["content"] = cleaned_text
+                            break
+
+                if tool_calls:
+                    for tool_call in tool_calls:
+                        function_name = tool_call["function"]["name"]
+                        arguments = tool_call["function"]["arguments"]
+                        
+                        if status_callback:
+                            status_callback(f"> Regis używa narzędzia: {function_name}...")
+                            
+                        if isinstance(arguments, str):
+                            try:
+                                arguments = json.loads(arguments)
+                            except json.JSONDecodeError:
+                                arguments = {}
+                                
+                        tool_result = tools_registry.execute_tool(function_name, arguments)
+                        
+                        messages.append({
+                            "role": "tool",
+                            "content": tool_result
+                        })
+                else:
+                    response_text = message.get("content", "")
+                    self.history.append({"role": "assistant", "content": response_text})
+                    
+                    if len(self.history) > self.history_limit:
+                        self.history = self.history[-self.history_limit:]
+                        
+                    return response_text
+                    
+            except RequestException as e:
+                logging.error(f"Ollama Chat Error: {e}")
+                raise LLMConnectionError(f"Nie udało się wygenerować odpowiedzi od modelu: {e}")

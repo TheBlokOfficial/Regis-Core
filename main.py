@@ -39,8 +39,8 @@ def main():
         )
 
         if mode_choice == "debug":
-            from tools import symulator_llm
-            symulator_llm.main(ha_client)
+            cli.console.print("[yellow]Tryb symulatora został usunięty w nowej architekturze Agentic Tools.[/yellow]")
+            cli.console.input("\n[dim]Naciśnij Enter...[/dim]")
             continue
             
         if mode_choice == "options":
@@ -57,7 +57,8 @@ def main():
                 
             llm_engine = LLMEngine(
                 model_name=selected_model,
-                temperature=settings.get("temperature", 0.5)
+                temperature=settings.get("temperature", 0.5),
+                history_limit=settings.get("history_limit", 10)
             )
             
             cli.run_production_loop(llm_engine, ha_client)
