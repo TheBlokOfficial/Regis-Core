@@ -4,6 +4,7 @@ from questionary import Style
 from rich.console import Console
 from rich.rule import Rule
 
+import datetime
 from integrations.ha_client import HomeAssistantClient
 from core.llm_engine import LLMEngine
 from core.exceptions import HomeAssistantConnectionError, LLMConnectionError
@@ -371,27 +372,53 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
             clear_screen()
             print_production_header(llm_engine.model_name, llm_engine.tier, profile_name, getattr(llm_engine, 'temperature', 0.5))
             
-            for msg in llm_engine.history:
-                if msg["role"] == "user":
-                    console.print(f"\n[bold white]Ty:[/bold white] {msg['content']}")
-                elif msg["role"] == "assistant":
-                    console.print(f"[bold white]Regis:[/bold white] {msg['content']}")
-                        
-            console.print(f"\n[bold white]Ty:[/bold white] {user_input}\n")
+            for msg in llm_engine.history[:-1]:  # omijamy ostatniego usera, bo wyświetlimy go ręcznie niżej
+                ts = msg.get("timestamp", "")
+                ts_str = f"[dim][{ts}][/dim] " if ts else ""
                 
-            with console.status("[dim]Regis analizuje żądanie...[/dim]", spinner="dots"):
-                def status_update(msg):
-                    console.print(f"[dim]{msg}[/dim]")
-                    
-                try:
-                    response_text = llm_engine.generate_response(user_input, tools_registry, status_update)
-                except (HomeAssistantConnectionError, LLMConnectionError) as e:
-                    console.print(f"\n[red]Błąd systemu (Połączenie): {e}[/red]")
-                    import logging
-                    logging.exception("Błąd w trakcie analizy otoczenia/LLM.")
-                    continue
+                if msg["role"] == "user":
+                    console.print(f"\n{ts_str}[bold white]Ty:[/bold white] {msg['content']}")
+                elif msg["role"] == "assistant":
+                    console.print(f"{ts_str}[bold white]Regis:[/bold white] {msg['content']}")
+                elif msg["role"] == "tool_log":
+                    console.print(f"{ts_str}[dim]{msg['content']}[/dim]")
+                        
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+            console.print(f"\n[dim][{now}][/dim] [bold white]Ty:[/bold white] {user_input}\n")
+                
+            status = console.status("[dim]Regis analizuje żądanie...[/dim]", spinner="dots")
+            status.start()
             
-            console.print(f"[bold white]Regis:[/bold white] {response_text}")
+            def status_update(msg):
+                status.stop()
+                ts_now = datetime.datetime.now().strftime("%H:%M:%S")
+                console.print(f"[dim][{ts_now}][/dim] [dim]{msg}[/dim]")
+                status.start()
+                
+            first_token_received = False
+            
+            def stream_update(token: str):
+                nonlocal first_token_received
+                if not first_token_received:
+                    status.stop()
+                    now_regis = datetime.datetime.now().strftime("%H:%M:%S")
+                    console.print(f"[dim][{now_regis}][/dim] [bold white]Regis:[/bold white] ", end="")
+                    first_token_received = True
+                print(token, end="", flush=True)
+
+            try:
+                response_text = llm_engine.generate_response(user_input, tools_registry, status_update, stream_update)
+            except (HomeAssistantConnectionError, LLMConnectionError) as e:
+                status.stop()
+                console.print(f"\n[red]Błąd systemu (Połączenie): {e}[/red]")
+                import logging
+                logging.exception("Błąd w trakcie analizy otoczenia/LLM.")
+                continue
+            finally:
+                status.stop()
+            
+            if first_token_received:
+                print() # nowa linia po zakończeniu strumienia
                 
         except KeyboardInterrupt:
             console.print("\n[dim]Zamykam system Regis.[/dim]")

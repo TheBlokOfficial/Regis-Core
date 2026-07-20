@@ -3,6 +3,7 @@ import logging
 import requests
 from requests.exceptions import RequestException
 from typing import Any
+import datetime
 
 from core.exceptions import LLMConnectionError
 
@@ -129,13 +130,14 @@ class LLMEngine:
                 
         return tool_calls, message_content
 
-    def generate_response(self, prompt: str, tools_registry, status_callback: Any = None) -> str:
+    def generate_response(self, prompt: str, tools_registry, status_callback: Any = None, stream_callback: Any = None) -> str:
         """Generuje zapytanie do modelu LLM z użyciem narzędzi i historii.
         
         Args:
             prompt (str): Polecenie od użytkownika.
             tools_registry: Instancja rejestru narzędzi.
             status_callback (callable): Funkcja wywoływana z informacją o używanych narzędziach.
+            stream_callback (callable): Funkcja wywoływana z każdym nowym tokenem tekstu.
             
         Returns:
             str: Tekstowa odpowiedź od modelu.
@@ -144,28 +146,51 @@ class LLMEngine:
         """
         prompt_to_use = f"{BASE_SYSTEM_PROMPT}\n{TIER_RULES.get(self.tier, TIER_RULES['basic'])}"
         messages = [{"role": "system", "content": prompt_to_use}]
-        messages.extend(self.history)
+        # Przekazujemy do Ollamy tylko pola role i content, ucinając nasz wewnętrzny timestamp oraz ignorując customowe role
+        messages.extend([{"role": m["role"], "content": m["content"]} for m in self.history if m["role"] not in ["tool_log"]])
         messages.append({"role": "user", "content": prompt})
         
-        self.history.append({"role": "user", "content": prompt})
+        now = datetime.datetime.now().strftime("%H:%M:%S")
+        self.history.append({"role": "user", "content": prompt, "timestamp": now})
         
         while True:
             payload = {
                 "model": self.model_name,
                 "messages": messages,
-                "stream": False,
+                "stream": True,
                 "tools": tools_registry.tools_schema,
                 "options": {
-                    "temperature": self.temperature
+                    "temperature": self.temperature,
+                    "num_ctx": 4096
                 }
             }
             
             try:
-                response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=30)
+                response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=30, stream=True)
                 response.raise_for_status()
-                result = response.json()
                 
-                message = result.get("message", {})
+                full_content = ""
+                tool_calls_accumulator = []
+                
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    chunk = json.loads(line)
+                    msg_chunk = chunk.get("message", {})
+                    
+                    if "content" in msg_chunk and msg_chunk["content"]:
+                        piece = msg_chunk["content"]
+                        full_content += piece
+                        if stream_callback:
+                            stream_callback(piece)
+                            
+                    if "tool_calls" in msg_chunk:
+                        tool_calls_accumulator.extend(msg_chunk["tool_calls"])
+                        
+                message = {"role": "assistant", "content": full_content}
+                if tool_calls_accumulator:
+                    message["tool_calls"] = tool_calls_accumulator
+                
                 messages.append(message)
                 
                 tool_calls = message.get("tool_calls", [])
@@ -187,6 +212,13 @@ class LLMEngine:
                         if status_callback:
                             status_callback(f"> Regis używa narzędzia: {function_name}...")
                             
+                        now_tool = datetime.datetime.now().strftime("%H:%M:%S")
+                        self.history.append({
+                            "role": "tool_log",
+                            "content": f"> Regis używa narzędzia: {function_name}...",
+                            "timestamp": now_tool
+                        })
+                            
                         if isinstance(arguments, str):
                             try:
                                 arguments = json.loads(arguments)
@@ -201,7 +233,8 @@ class LLMEngine:
                         })
                 else:
                     response_text = message.get("content", "")
-                    self.history.append({"role": "assistant", "content": response_text})
+                    now_assistant = datetime.datetime.now().strftime("%H:%M:%S")
+                    self.history.append({"role": "assistant", "content": response_text, "timestamp": now_assistant})
                     
                     if len(self.history) > self.history_limit:
                         self.history = self.history[-self.history_limit:]
@@ -209,5 +242,11 @@ class LLMEngine:
                     return response_text
                     
             except RequestException as e:
-                logging.error(f"Ollama Chat Error: {e}")
-                raise LLMConnectionError(f"Nie udało się wygenerować odpowiedzi od modelu: {e}")
+                error_details = str(e)
+                if hasattr(e, 'response') and e.response is not None:
+                    try:
+                        error_details = f"{e} - {e.response.json().get('error', e.response.text)}"
+                    except Exception:
+                        error_details = f"{e} - {e.response.text}"
+                logging.error(f"Ollama Chat Error: {error_details}")
+                raise LLMConnectionError(f"Odrzucono zapytanie (HTTP Error): {error_details}")

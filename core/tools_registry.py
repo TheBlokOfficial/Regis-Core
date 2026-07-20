@@ -68,6 +68,19 @@ class ToolsRegistry:
         return json.dumps({"error": f"Urządzenie o ID {entity_id} nie zostało znalezione."}, ensure_ascii=False)
 
     def _execute_ha_action(self, action: str, entity_id: str, parameters: dict[str, Any]) -> str:
+        try:
+            states = self.ha_client.get_all_states()
+        except Exception:
+            states = {}
+            
+        if isinstance(entity_id, list):
+            invalid_ids = [eid for eid in entity_id if eid not in states]
+            if invalid_ids:
+                return json.dumps({"result": "error", "message": f"Błąd: Podane ID {invalid_ids} nie istnieją w systemie! Zanim zgadniesz ID, musisz użyć narzędzia 'get_devices'. WYGENERUJ TERAZ blok JSON wywołujący get_devices, nie tłumacz się użytkownikowi!"}, ensure_ascii=False)
+        elif isinstance(entity_id, str):
+            if entity_id not in states:
+                return json.dumps({"result": "error", "message": f"Błąd: Urządzenie o ID '{entity_id}' nie istnieje w systemie! Zanim zgadniesz ID, musisz użyć narzędzia 'get_devices'. WYGENERUJ TERAZ blok JSON wywołujący get_devices, nie pisz wymówek!"}, ensure_ascii=False)
+                
         success = self.ha_client.execute_action(action, entity_id, parameters)
         if success:
             return json.dumps({"result": "success", "message": f"Wykonano akcję {action} na {entity_id}."})
