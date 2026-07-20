@@ -2,22 +2,18 @@ import sys
 import os
 import json
 
-# Dodanie katalogu głównego do ścieżki
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from integrations import ha_client
-from rich.console import Console
+from integrations.ha_client import HomeAssistantClient
+from core.exceptions import HomeAssistantConnectionError
+from core.action_parser import parse_llm_response, execute_parsed_action
+from ui.cli import console, clear_screen, print_action_result
+
 from rich.panel import Panel
 from rich.syntax import Syntax
-
-console = Console()
-
-def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
-
 from rich.rule import Rule
 
-def main():
+def main(ha_client: HomeAssistantClient):
     while True:
         try:
             clear_screen()
@@ -29,10 +25,13 @@ def main():
             console.print(header_panel)
             
             console.print(Rule("[dim]Bieżący Stan Home Assistant[/dim]", style="dim"))
-            current_state = ha_client.get_all_states()
-            
-            syntax = Syntax(json.dumps(current_state, indent=2), "json", theme="ansi_dark", line_numbers=False)
-            console.print(syntax)
+            try:
+                current_state = ha_client.get_all_states()
+                syntax = Syntax(json.dumps(current_state, indent=2), "json", theme="ansi_dark", line_numbers=False)
+                console.print(syntax)
+            except HomeAssistantConnectionError as e:
+                console.print(f"[red]Błąd połączenia z HA: {e}[/red]")
+                current_state = {}
             
             console.print(Rule(style="dim"))
             console.print("[dim]Przykładowy JSON: {\"action\": \"turn_on\", \"entity_id\": \"light.biurko\", \"parameters\": {}}[/dim]\n")
@@ -45,39 +44,13 @@ def main():
             if not user_json_str.strip():
                 continue
                 
-            try:
-                action_data = json.loads(user_json_str)
-                action = action_data.get("action", "none")
-                entity_id = action_data.get("entity_id", "none")
-                parameters = action_data.get("parameters", {})
-                reply = action_data.get("reply", "")
-                
-                console.print()
-                console.print(Rule("[dim]Próba Wykonania (Symulator)[/dim]", style="dim"))
-                
-                if action != "none" and entity_id != "none":
-                    if isinstance(entity_id, list):
-                        entity_str = f"Wiele urządzeń ({len(entity_id)}x)"
-                    else:
-                        entity_str = str(entity_id)
-                        
-                    console.print(f"[dim] Akcja: {action} | Cel: {entity_str} | Param: {parameters}[/dim]")
-                    
-                    success = ha_client.execute_action(action, entity_id, parameters)
-                    if success:
-                        console.print("[dim] ✓ Pomyślnie wysterowano sprzętem (API).[/dim]")
-                    else:
-                        console.print("[red] ✗ Wystąpił błąd komunikacji ze sprzętem (API).[/red]")
-                else:
-                    console.print("[dim] Brak fizycznej akcji na urządzeniach.[/dim]")
-                    
-                console.print(Rule(style="dim"))
-                
-                if reply:
-                    console.print(f"\n[bold white]Odpowiedź Regisa (Syntezator mowy):[/bold white] {reply}")
-                    
-            except json.JSONDecodeError:
-                console.print("\n[red][BŁĄD SYNTAKTYCZNY]: Nieprawidłowy format JSON.[/red]")
+            console.print()
+            console.print(Rule("[dim]Próba Wykonania (Symulator)[/dim]", style="dim"))
+            
+            parsed_result = parse_llm_response(user_json_str)
+            parsed_result = execute_parsed_action(parsed_result, ha_client)
+            
+            print_action_result(parsed_result)
                 
             console.input("\n[dim]Naciśnij Enter, aby przeładować stan i kontynuować...[/dim]")
                 
@@ -85,4 +58,5 @@ def main():
             break
 
 if __name__ == "__main__":
-    main()
+    dummy_client = HomeAssistantClient("http://localhost:8123", "dummy", {})
+    main(dummy_client)

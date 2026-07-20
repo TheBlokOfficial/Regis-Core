@@ -5,21 +5,28 @@ Regis to lokalny, prywatny system AI, pełniący rolę administratora domu. Nas�
 
 ## Struktura katalogów
 - `core/`: 
-  - `llm_engine.py`: Moduł odpowiedzialny za komunikację z API Ollamy (pobieranie tagów, generowanie odpowiedzi), zarządzanie promptem systemowym i wymuszanie zwrotu w formacie JSON. 
+  - `llm_engine.py`: Moduł odpowiedzialny za komunikację z API Ollamy (pobieranie tagów, generowanie odpowiedzi), zarządzanie promptem systemowym. 
+  - `config.py`: Centralne zarządzanie konfiguracją i plikami JSON (settings, aliases, active_models).
+  - `exceptions.py`: Definicje niestandardowych wyjątków (np. `HomeAssistantConnectionError`, `LLMConnectionError`).
+  - `action_parser.py`: Bezstanowa logika parsowania JSON od LLM na obiekt `ActionResult`.
 - `integrations/`:
-  - `ha_client.py`: Klient HTTP komunikujący się z zewnętrznym REST API Home Assistanta w celu fizycznego egzekwowania komend sprzętowych.
-  - `ha_mock.py`: Moduł mockujący zachowanie serwera HA, używany do testowania bez połączenia z właściwym fizycznym serwerem.
+  - `ha_client.py`: Klient HTTP komunikujący się z zewnętrznym REST API Home Assistanta (oparty na bibliotece `requests`).
+  - `ha_mock.py`: Moduł mockujący zachowanie serwera HA.
+- `ui/`:
+  - `cli.py`: Warstwa prezentacji, odpowiedzialna za terminalowe menu graficzne w oparciu o biblioteki `rich` i `questionary`.
 - `tools/`:
-  - `symulator_llm.py`: Skrypt developerski umożliwiający ręczne wysyłanie JSON-ów do parsera aplikacji celem debugowania, bez angażowania i czekania na odpowiedź modelu LLM.
-- `data/`: Katalog przeznaczony na pliki konfiguracyjne i stany (.json) generowane podczas działania programu (wyłączony z repozytorium gita).
-  - `active_models.json`: Przechowuje listę stringów modeli, które użytkownik zdecydował się uczynić widocznymi w głównym konfiguratorze.
-  - `ha_state.json`: Przechowuje stan sztucznego/mockowanego domu.
-- `main.py`: Główny plik startowy. Inicjalizuje system, pozwala zarządzać modelami poprzez bibliotekę `questionary`, a następnie odpala główną pętlę interakcji w oparciu o wyciszony `rich` z architekturą Single-Turn Render (ekran jest czyszczony wywołaniem `os.system('cls')` na każdym cyklu w celu czytelności).
+  - `symulator_llm.py`: Skrypt developerski umożliwiający ręczne wysyłanie JSON-ów do parsera aplikacji celem debugowania (tzw. Wizard of Oz).
+- `tests/`:
+  - Katalog zawierający testy jednostkowe w oparciu o środowisko `pytest` (np. `test_config.py`, `test_ha_mock.py`).
+- `data/`: Katalog przeznaczony na logi (`regis.log`) oraz pliki konfiguracyjne (`settings.json`, `aliases.json`, `active_models.json`, `ha_state.json`). Wyłączony z repozytorium.
+- `main.py`: Punkt wejściowy (Orchestrator). Inicjalizuje system, ładuje konfigurację i deleguje sterowanie główną pętlą do modułu `ui.cli`.
 
 ## Stos technologiczny
 - **Kod**: Python 3.10+
 - **Model / Silnik**: Ollama (endpointy: `http://localhost:11434/api/generate` oraz `/api/tags`).
 - **Konsola**: Biblioteka `rich` dla struktur układu oraz `questionary` do interaktywnego wyboru zmiennych. Interfejs jest stonowany i ascetyczny (bez zbędnych jaskrawych kolorów).
+- **Komunikacja**: Pakiet `requests` do bezpiecznych i stabilnych połączeń REST API.
+- **Testowanie**: Narzędzie `pytest` do testów jednostkowych środowiska DX.
 
 ## Planowane kierunki rozwoju (Kolejka)
 1. System Pamięci Kontekstowej: Dodanie bufora i logiki do zachowywania historii konwersacji między cyklami (włączenie pamięci dla LLM, by rozumiał zapytania oparte o poprzednie interakcje).

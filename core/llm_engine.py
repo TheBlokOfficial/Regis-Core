@@ -1,12 +1,14 @@
 import json
-import urllib.request
-import urllib.error
+import logging
+import requests
+from requests.exceptions import RequestException
+from typing import Any
+
+from core.exceptions import LLMConnectionError
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_GENERATE_URL = f"{OLLAMA_BASE_URL}/api/generate"
 OLLAMA_TAGS_URL = f"{OLLAMA_BASE_URL}/api/tags"
-
-MODEL_NAME = "hf.co/speakleash/Bielik-11B-v3.0-Instruct-GGUF" 
 
 SYSTEM_PROMPT = """Jesteś inteligentnym lokajem domowym o imieniu Regis.
 Oto obecny stan domu (w formacie JSON):
@@ -36,38 +38,70 @@ Użytkownik: Siema, co tam?
 Wygeneruj: {"action": "none", "entity_id": "none", "parameters": {}, "reply": "Witaj! Czekam na Twoje polecenia."}
 """
 
-def get_available_models():
-    """Pobiera z lokalnej instancji Ollamy listę dostępnych modeli."""
-    req = urllib.request.Request(OLLAMA_TAGS_URL, headers={'Content-Type': 'application/json'})
-    try:
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
+class LLMEngine:
+    """Silnik odpowiadający za komunikację z lokalnym serwerem Ollama."""
+
+    def __init__(self, model_name: str, temperature: float = 0.5):
+        """Inicjalizuje silnik z odpowiednim modelem.
+        
+        Args:
+            model_name (str): Nazwa modelu używanego w Ollamie.
+            temperature (float): Poziom losowości generowanych odpowiedzi.
+        """
+        self.model_name = model_name
+        self.temperature = temperature
+        logging.info(f"Zainicjalizowano LLMEngine: Model={model_name}, Temp={temperature}")
+
+    @staticmethod
+    def get_available_models() -> list[str]:
+        """Pobiera z lokalnej instancji Ollamy listę dostępnych modeli.
+        
+        Returns:
+            list[str]: Lista pobranych modeli.
+        Raises:
+            LLMConnectionError: Gdy nie można nawiązać połączenia z serwerem Ollama.
+        """
+        try:
+            response = requests.get(OLLAMA_TAGS_URL, timeout=5)
+            response.raise_for_status()
+            data = response.json()
             models = [model['name'] for model in data.get('models', [])]
             return models
-    except urllib.error.URLError as e:
-        print(f"[BŁĄD] Nie można połączyć się z Ollama: {e}")
-        return []
+        except RequestException as e:
+            logging.error(f"Nie można połączyć się z serwerem Ollama: {e}")
+            raise LLMConnectionError(f"Ollama API Error: {e}")
 
-def generate_response(prompt, ha_state):
-    system_p = SYSTEM_PROMPT.replace("{ha_state}", json.dumps(ha_state, indent=2))
-    
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": prompt,
-        "system": system_p,
-        "stream": False,
-        "format": "json",
-        "options": {
-            "temperature": 0.5
+    def generate_response(self, prompt: str, ha_state: dict[str, Any]) -> str:
+        """Generuje zapytanie do modelu LLM i formatuje odpowiedź.
+        
+        Args:
+            prompt (str): Polecenie od użytkownika.
+            ha_state (dict[str, Any]): Aktualny stan urządzeń Home Assistanta.
+            
+        Returns:
+            str: JSON w postaci stringa zwrócony przez model.
+        Raises:
+            LLMConnectionError: Jeśli wygenerowanie odpowiedzi się nie powiodło.
+        """
+        system_p = SYSTEM_PROMPT.replace("{ha_state}", json.dumps(ha_state, indent=2))
+        
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "system": system_p,
+            "stream": False,
+            "format": "json",
+            "options": {
+                "temperature": self.temperature
+            }
         }
-    }
-    
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(OLLAMA_GENERATE_URL, data=data, headers={'Content-Type': 'application/json'})
-    
-    try:
-        with urllib.request.urlopen(req) as response:
-            result = json.loads(response.read().decode('utf-8'))
+        
+        try:
+            logging.debug(f"Wysyłam prompt do Ollamy ({self.model_name}): {prompt}")
+            response = requests.post(OLLAMA_GENERATE_URL, json=payload, timeout=30)
+            response.raise_for_status()
+            result = response.json()
             return result.get("response", "")
-    except urllib.error.URLError as e:
-        return f'{{"action": "none", "entity_id": "none", "reply": "[BŁĄD] Nie można połączyć się z Ollama: {e}"}}'
+        except RequestException as e:
+            logging.error(f"Ollama Generation Error: {e}")
+            raise LLMConnectionError(f"Nie udało się wygenerować odpowiedzi od modelu: {e}")

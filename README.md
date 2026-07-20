@@ -11,7 +11,8 @@ Projekt Regis-Core to centralny serwer prywatnego asystenta głosowego (LLM-base
 
 ## Architektura i działanie
 
-System łączy się z lokalną instancją serwera Ollama. Po odpytaniu endpointu `/api/tags` buduje interfejs CLI, z poziomu którego operator wybiera model bazowy do załadowania. Następnie system utrzymuje główną pętlę nasłuchującą, w której wejście od użytkownika parowane jest z aktualnym stanem urządzeń w Home Assistant. Zwrócony przez model ciąg znaków jest walidowany i parsowany jako JSON, a docelowo wysyłany jako fizyczna akcja do serwera HA.
+System korzysta z założeń Czystej Architektury (Clean Architecture). Posiada centralny moduł Orchestratora (`main.py`), odseparowaną warstwę UI w terminalu (`ui/cli.py`) oraz hermetyczną logikę wnioskowania LLM i parsowania akcji (`core/`). Komunikacja odbywa się przez stabilne połączenia (`requests`), a błędy środowiskowe obsługiwane są za pomocą niestandardowych wyjątków.  
+Zwrócony przez model ciąg znaków jest walidowany, a następnie w strukturze `ActionResult` wysyłany jako fizyczna akcja do serwera HA.
 
 ## Wymagania systemowe
 
@@ -27,4 +28,11 @@ System łączy się z lokalną instancją serwera Ollama. Po odpytaniu endpointu
 Głównym punktem wejściowym całego systemu jest plik:
 ```bash
 python main.py
+```
+
+## Testowanie (Środowisko Deweloperskie)
+
+Aby zweryfikować poprawność kodu po wprowadzonych zmianach, uruchom:
+```bash
+pytest
 ```
