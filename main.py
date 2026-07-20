@@ -89,15 +89,7 @@ def select_model_flow():
             
         return selected_value
 
-def main():
-    selected_model = select_model_flow()
-    
-    if not selected_model:
-        console.print("[red]Zamykam system Regis.[/red]")
-        return
-        
-    llm_engine.MODEL_NAME = selected_model
-    
+def run_production_loop():
     clear_screen()
     header_panel = Panel(
         f"Model: [bold]{llm_engine.MODEL_NAME}[/bold] | Komenda: 'wyjdz'", 
@@ -168,6 +160,37 @@ def main():
         except KeyboardInterrupt:
             console.print("\n[dim]Zamykam system Regis.[/dim]")
             break
+
+def main():
+    while True:
+        clear_screen()
+        console.print(Panel.fit("[bold cyan]REGIS CORE - MENU GŁÓWNE[/bold cyan]", border_style="cyan"))
+        
+        mode_choice = questionary.select(
+            "Wybierz tryb uruchomienia systemu:",
+            choices=[
+                questionary.Choice(title="Uruchomienie standardowe (Produkcja)", value="prod"),
+                questionary.Choice(title="Tryb debugowania jako LLM (Symulator)", value="debug"),
+                questionary.Choice(title="Wyjście", value="exit")
+            ]
+        ).ask()
+        
+        if mode_choice == "exit" or not mode_choice:
+            console.print("[red]Zamykam system Regis.[/red]")
+            return
+            
+        if mode_choice == "debug":
+            from tools import symulator_llm
+            symulator_llm.main()
+            continue
+            
+        if mode_choice == "prod":
+            selected_model = select_model_flow()
+            if not selected_model:
+                continue
+                
+            llm_engine.MODEL_NAME = selected_model
+            run_production_loop()
 
 if __name__ == "__main__":
     main()

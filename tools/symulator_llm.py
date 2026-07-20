@@ -15,23 +15,29 @@ console = Console()
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+from rich.rule import Rule
+
 def main():
     while True:
         try:
             clear_screen()
-            console.print(Panel.fit("[bold magenta]SYMULATOR LLM (WIZARD OF OZ DEBUGGER)[/bold magenta]\n[white]Ty jesteś modelem językowym! Widzisz na żywo JSON z urządzeniami i musisz zwrócić komendę, by je wysterować.[/white]", border_style="magenta"))
+            header_panel = Panel(
+                "[dim]Jesteś modelem LLM. Analizujesz poniższy stan i zwracasz JSON komendy.[/dim]\n[dim]Wpisz 'wyjdz' aby zakończyć symulację.[/dim]", 
+                title="[yellow]SYMULATOR LLM (WIZARD OF OZ)[/yellow]", 
+                border_style="yellow"
+            )
+            console.print(header_panel)
             
-            console.print("\n[bold cyan]--- BIEŻĄCY STAN HOME ASSISTANT ---[/bold cyan]")
+            console.print(Rule("[dim]Bieżący Stan Home Assistant[/dim]", style="dim"))
             current_state = ha_client.get_all_states()
             
-            syntax = Syntax(json.dumps(current_state, indent=2), "json", theme="monokai", line_numbers=True)
+            syntax = Syntax(json.dumps(current_state, indent=2), "json", theme="ansi_dark", line_numbers=False)
             console.print(syntax)
             
-            console.print("[dim white]Instrukcja: Wpisz czysty JSON, np:[/dim white]")
-            console.print('[dim white]{"action": "turn_on", "entity_id": "light.biurko", "parameters": {"brightness_pct": 50}}[/dim white]')
-            console.print("[dim white]Wpisz 'wyjdz' aby zakończyć.[/dim white]\n")
+            console.print(Rule(style="dim"))
+            console.print("[dim]Przykładowy JSON: {\"action\": \"turn_on\", \"entity_id\": \"light.biurko\", \"parameters\": {}}[/dim]\n")
             
-            user_json_str = console.input("[bold green][Twój JSON (jako LLM)]:[/bold green] ")
+            user_json_str = console.input("[bold white]Twój JSON (jako LLM):[/bold white] ")
             
             if user_json_str.strip().lower() in ['wyjdz', 'wyjscie', 'exit', 'quit']:
                 break
@@ -46,25 +52,34 @@ def main():
                 parameters = action_data.get("parameters", {})
                 reply = action_data.get("reply", "")
                 
-                console.print(f"\n[magenta]---> PRÓBA WYKONANIA PRZEZ ha_client.py <---[/magenta]")
-                console.print(f"[magenta]Wywoływana Akcja:[/magenta] {action} | [magenta]Urządzenie:[/magenta] {entity_id} | [magenta]Parametry:[/magenta] {parameters}")
+                console.print()
+                console.print(Rule("[dim]Próba Wykonania (Symulator)[/dim]", style="dim"))
                 
                 if action != "none" and entity_id != "none":
+                    if isinstance(entity_id, list):
+                        entity_str = f"Wiele urządzeń ({len(entity_id)}x)"
+                    else:
+                        entity_str = str(entity_id)
+                        
+                    console.print(f"[dim] Akcja: {action} | Cel: {entity_str} | Param: {parameters}[/dim]")
+                    
                     success = ha_client.execute_action(action, entity_id, parameters)
                     if success:
-                        console.print("[bold green][WYNIK API]: SUKCES! Narzędzie zadziałało poprawnie.[/bold green]")
+                        console.print("[dim] ✓ Pomyślnie wysterowano sprzętem (API).[/dim]")
                     else:
-                        console.print("[bold red][WYNIK API]: PORAŻKA! Funkcja execute_action zwróciła False.[/bold red]")
+                        console.print("[red] ✗ Wystąpił błąd komunikacji ze sprzętem (API).[/red]")
                 else:
-                    console.print("[bold yellow][WYNIK API]: Brak akcji na urządzeniach.[/bold yellow]")
+                    console.print("[dim] Brak fizycznej akcji na urządzeniach.[/dim]")
                     
+                console.print(Rule(style="dim"))
+                
                 if reply:
-                    console.print(f"\n🔊 [bold cyan][GŁOŚNIK (To słyszy człowiek)]:[/bold cyan] {reply}")
+                    console.print(f"\n[bold white]Odpowiedź Regisa (Syntezator mowy):[/bold white] {reply}")
                     
             except json.JSONDecodeError:
-                console.print("\n[bold red][BŁĄD SYNTAKTYCZNY]: To co wpisałeś, to nie jest kod JSON! Brakuje cudzysłowów lub klamry.[/bold red]")
+                console.print("\n[red][BŁĄD SYNTAKTYCZNY]: Nieprawidłowy format JSON.[/red]")
                 
-            console.input("\n[dim white]Naciśnij Enter, aby przeładować stan HA i kontynuować...[/dim white]")
+            console.input("\n[dim]Naciśnij Enter, aby przeładować stan i kontynuować...[/dim]")
                 
         except KeyboardInterrupt:
             break
