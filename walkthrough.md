@@ -44,3 +44,8 @@ Regis to lokalny, prywatny system AI, pełniący rolę administratora domu. Nas�
 ## Planowane kierunki rozwoju (Kolejka)
 1. Integracja WakeWord: Moduł serwerowy do obróbki bezpośredniego strumienia audio wpadającego od satelitów (ESP32).
 2. Obsługa Błędów Narzędzi: Bardziej zaawansowana logika podpowiadania modelowi rozwiązań, gdy wywoła funkcję ze złymi argumentami.
+4. **Docelowa Architektura Agentowa (Tiered System / Handoff)**: 
+   - Przebudowa Regis-Core w kierunku architektury dwuwarstwowej, sprofilowanej pod konkretne modele (np. Qwen).
+   - **"Recepcjonista" (Raspberry Pi 5)**: Mniejszy model działający 24/7 jako podproces, odpowiedzialny za codzienną, lekką interakcję i proste narzędzia.
+   - **"Szef" (Desktop PC z GPU)**: Wielki model wyposażony w pulę zaawansowanych narzędzi, uruchamiany wyłącznie na żądanie (np. przez narzędzie `call_boss()`).
+   - System na żądanie sprawdzi dostępność stacji roboczych PC (działająca w tle usługa monitorująca VRAM), załaduje Szefa z pełnym przekazaniem kontekstu rozmowy (wysyłając prośbę do Ollamy po lokalnym IP), a po rozwiązaniu skomplikowanego zadania zwolni kartę graficzną. Pozwoli to na łączenie potężnej dedukcji z zerowym marnotrawieniem energii.

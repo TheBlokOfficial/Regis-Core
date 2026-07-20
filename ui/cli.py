@@ -298,17 +298,30 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
     while True:
         try:
             user_input = console.input("\n[bold white]Ty:[/bold white] ")
-            if user_input.lower() in ["wyjscie", "wyjdz", "exit", "quit"]:
+            if user_input.lower() == "/exit":
                 break
                 
-            if user_input.lower() in ["reset", "zapomnij"]:
+            if user_input.lower() == "/help":
+                console.print("\n[bold white]Dostępne komendy:[/bold white]")
+                console.print("[dim]/help[/dim] - [dim]Wyświetla tę listę komend[/dim]")
+                console.print("[dim]/exit[/dim] - [dim]Kończy działanie programu[/dim]")
+                console.print("[dim]/clear[/dim] - [dim]Czyści historię bieżącej konwersacji[/dim]")
+                console.print("[dim]/tier \[poziom][/dim] - [dim]Zmienia poziom uprawnień (basic/advanced)[/dim]")
+                console.print("[dim]/temp \[wartość][/dim] - [dim]Zmienia temperaturę modelu (0.0 - 1.0)[/dim]")
+                console.print("[dim]/profiles[/dim] - [dim]Otwiera menu zmiany profilu modelu[/dim]\n")
+                console.input("[dim]Naciśnij Enter, aby kontynuować...[/dim]")
+                clear_screen()
+                print_production_header(llm_engine.model_name, llm_engine.tier, profile_name, getattr(llm_engine, 'temperature', 0.5))
+                continue
+                
+            if user_input.lower() == "/clear":
                 llm_engine.clear_history()
                 clear_screen()
                 print_production_header(llm_engine.model_name, llm_engine.tier, profile_name, getattr(llm_engine, 'temperature', 0.5))
                 console.print("\n[dim]Pamięć podręczna modelu została wyczyszczona.[/dim]")
                 continue
                 
-            if user_input.lower().startswith("tier "):
+            if user_input.lower().startswith("/tier "):
                 new_tier = user_input.split(" ")[1].lower().strip()
                 if new_tier in ["basic", "advanced"]:
                     llm_engine.tier = new_tier
@@ -320,7 +333,7 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
                     console.print("\n[red]Nieznany poziom! Dostępne: basic, advanced.[/red]")
                 continue
                 
-            if user_input.lower().startswith("temp "):
+            if user_input.lower().startswith("/temp "):
                 try:
                     new_temp = float(user_input.split(" ")[1].strip())
                     if 0.0 <= new_temp <= 1.0:
@@ -334,7 +347,7 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
                     console.print("\n[red]Nieprawidłowa wartość temperatury![/red]")
                 continue
                 
-            if user_input.lower() == "profile":
+            if user_input.lower() == "/profiles":
                 profiles = config.load_profiles()
                 if not profiles:
                     console.print("\n[yellow]Brak utworzonych profili.[/yellow]")
@@ -392,14 +405,18 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
             status = console.status("[dim]Regis analizuje żądanie...[/dim]", spinner="dots")
             status.start()
             
+            first_token_received = False
+            
             def status_update(msg_text):
+                nonlocal first_token_received
+                if first_token_received:
+                    print() # Zamknięcie poprzedniej linii z tekstem
+                    first_token_received = False
                 status.stop()
                 ts_now = datetime.datetime.now().strftime("%H:%M:%S")
                 console.print(f"[dim green][{ts_now}][/dim green] [dim]{msg_text}[/dim]", highlight=False)
                 status.start()
                 
-            first_token_received = False
-            
             def stream_update(token: str):
                 nonlocal first_token_received
                 if not first_token_received:

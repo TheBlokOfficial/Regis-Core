@@ -23,3 +23,6 @@ Kiedy użytkownik zasygnalizuje koniec pracy (hasła: "na dziś to wszystko", "k
 3. **Zaktualizuj plik `walkthrough.md`**: Zrób to TYLKO wtedy, gdy wprowadzono istotne zmiany architektoniczne.
 4. **Zapisz zmiany w repozytorium**: Użyj narzędzia `run_command` w głównym katalogu projektu, aby odpalić kolejno: `git add .`, `git commit -m "Auto-zapis sesji agenta: [podsumowanie]"` oraz `git push`.
 Dopiero po pomyślnym wykonaniu tych kroków, poinformuj użytkownika wylistowując co dokładnie zaktualizowałeś, potwierdź wysłanie do repozytorium i pożegnaj się.
+
+**[FILOZOFIA I ARCHITEKTURA PROJEKTU]**
+Bezwzględnie zapoznaj się z plikiem `docs/ARCHITECTURE.md`, który zawiera kluczowe założenia projektowe, specyfikację sprzętową oraz docelowe modele. Te założenia muszą przyświecać każdej Twojej decyzji programistycznej.
