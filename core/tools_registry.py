@@ -46,6 +46,10 @@ class ToolsRegistry:
                     arguments.get("entity_id", ""),
                     arguments.get("parameters", {})
                 )
+            elif tool_name == "get_current_time":
+                return self._get_current_time()
+            elif tool_name == "get_weather":
+                return self._get_weather(arguments.get("location", ""))
             else:
                 return f'{{"error": "Nieznane narzędzie: {tool_name}"}}'
         except Exception as e:
@@ -86,3 +90,46 @@ class ToolsRegistry:
             return json.dumps({"result": "success", "message": f"Wykonano akcję {action} na {entity_id}."})
         else:
             return json.dumps({"result": "error", "message": f"Nie udało się wykonać {action} na {entity_id}."})
+
+    def _get_current_time(self) -> str:
+        import datetime
+        now = datetime.datetime.now()
+        return json.dumps({
+            "current_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "weekday": now.strftime("%A")
+        }, ensure_ascii=False)
+
+    def _get_weather(self, location: str) -> str:
+        if not location:
+            return json.dumps({"error": "Brak lokalizacji. Opowiedz użytkownikowi, że potrzebujesz nazwy miasta."}, ensure_ascii=False)
+        
+        try:
+            import requests
+            # Używamy serwisu wttr.in dla prostych danych pogodowych
+            url = f"https://wttr.in/{location}?format=j1"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Wyciąganie kluczowych danych, by nie przeciążyć tokenów
+            current = data.get("current_condition", [{}])[0]
+            if not current:
+                return json.dumps({"error": "Nie znaleziono danych o pogodzie dla podanej lokalizacji."})
+                
+            weather_desc_pl_list = current.get("lang_pl", [])
+            weather_desc = weather_desc_pl_list[0].get("value") if weather_desc_pl_list else current.get("weatherDesc", [{}])[0].get("value")
+            
+            result = {
+                "location": location,
+                "description": weather_desc,
+                "temperature_C": current.get("temp_C"),
+                "feels_like_C": current.get("FeelsLikeC"),
+                "humidity_percent": current.get("humidity"),
+                "wind_speed_kmh": current.get("windspeedKmph")
+            }
+            return json.dumps(result, ensure_ascii=False)
+            
+        except requests.exceptions.RequestException as e:
+            return json.dumps({"error": f"Nie udało się połączyć z serwisem pogodowym: {str(e)}"}, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"error": f"Błąd parsowania danych o pogodzie: {str(e)}"}, ensure_ascii=False)

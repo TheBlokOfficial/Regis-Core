@@ -63,5 +63,36 @@ BASE_TOOLS_SCHEMA = [
                 "required": ["action", "entity_id"]
             }
         }
+    },
+    {
+        "type": "function",
+        "required_tier": "basic",
+        "function": {
+            "name": "get_current_time",
+            "description": "Zwraca bieżącą datę i czas systemowy (razem z dniem tygodnia).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "required_tier": "basic",
+        "function": {
+            "name": "get_weather",
+            "description": "Zwraca aktualne informacje o pogodzie w podanej lokalizacji (mieście). Używaj, gdy użytkownik pyta o pogodę.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "Nazwa miasta, np. 'Warszawa'."
+                    }
+                },
+                "required": ["location"]
+            }
+        }
     }
 ]

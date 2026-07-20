@@ -372,27 +372,30 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
             clear_screen()
             print_production_header(llm_engine.model_name, llm_engine.tier, profile_name, getattr(llm_engine, 'temperature', 0.5))
             
-            for msg in llm_engine.history[:-1]:  # omijamy ostatniego usera, bo wyświetlimy go ręcznie niżej
+            for msg in llm_engine.history:
+                if msg.get("is_internal"):
+                    continue
+                
                 ts = msg.get("timestamp", "")
-                ts_str = f"[dim][{ts}][/dim] " if ts else ""
+                ts_str = f"[dim green][{ts}][/dim green] " if ts else ""
                 
                 if msg["role"] == "user":
-                    console.print(f"\n{ts_str}[bold white]Ty:[/bold white] {msg['content']}")
+                    console.print(f"\n{ts_str}[bold white]Ty:[/bold white] {msg['content']}\n", highlight=False)
                 elif msg["role"] == "assistant":
-                    console.print(f"{ts_str}[bold white]Regis:[/bold white] {msg['content']}")
+                    console.print(f"{ts_str}[bold white]Regis:[/bold white] {msg['content']}", highlight=False)
                 elif msg["role"] == "tool_log":
-                    console.print(f"{ts_str}[dim]{msg['content']}[/dim]")
+                    console.print(f"{ts_str}[dim]{msg['content']}[/dim]", highlight=False)
                         
             now = datetime.datetime.now().strftime("%H:%M:%S")
-            console.print(f"\n[dim][{now}][/dim] [bold white]Ty:[/bold white] {user_input}\n")
+            console.print(f"\n[dim green][{now}][/dim green] [bold white]Ty:[/bold white] {user_input}\n", highlight=False)
                 
             status = console.status("[dim]Regis analizuje żądanie...[/dim]", spinner="dots")
             status.start()
             
-            def status_update(msg):
+            def status_update(msg_text):
                 status.stop()
                 ts_now = datetime.datetime.now().strftime("%H:%M:%S")
-                console.print(f"[dim][{ts_now}][/dim] [dim]{msg}[/dim]")
+                console.print(f"[dim green][{ts_now}][/dim green] [dim]{msg_text}[/dim]", highlight=False)
                 status.start()
                 
             first_token_received = False
@@ -400,9 +403,11 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
             def stream_update(token: str):
                 nonlocal first_token_received
                 if not first_token_received:
+                    if not token.strip():
+                        return
                     status.stop()
                     now_regis = datetime.datetime.now().strftime("%H:%M:%S")
-                    console.print(f"[dim][{now_regis}][/dim] [bold white]Regis:[/bold white] ", end="")
+                    console.print(f"[dim green][{now_regis}][/dim green] [bold white]Regis:[/bold white] ", end="", highlight=False)
                     first_token_received = True
                 print(token, end="", flush=True)
 
@@ -410,7 +415,7 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
                 response_text = llm_engine.generate_response(user_input, tools_registry, status_update, stream_update)
             except (HomeAssistantConnectionError, LLMConnectionError) as e:
                 status.stop()
-                console.print(f"\n[red]Błąd systemu (Połączenie): {e}[/red]")
+                console.print(f"\n[red]Błąd systemu (Połączenie): {e}[/red]", highlight=False)
                 import logging
                 logging.exception("Błąd w trakcie analizy otoczenia/LLM.")
                 continue
@@ -418,7 +423,7 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, p
                 status.stop()
             
             if first_token_received:
-                print() # nowa linia po zakończeniu strumienia
+                print()
                 
         except KeyboardInterrupt:
             console.print("\n[dim]Zamykam system Regis.[/dim]")

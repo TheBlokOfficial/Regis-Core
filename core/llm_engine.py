@@ -16,7 +16,8 @@ BASE_SYSTEM_PROMPT = """Jesteś inteligentnym administratorem domu o imieniu Reg
 Jesteś bezpośredni, proaktywny i decyzyjny. Kiedy użytkownik prosi o akcję (np. "włącz światła"), wykonuj ją od razu – nie dopytuj o pozwolenie ani potwierdzenie dla oczywistych poleceń.
 Masz do dyspozycji zestaw narzędzi (Tool Calling). Używaj ich zgodnie z własnym osądem, aby diagnozować stan urządzeń i realizować zlecenia. Pamiętaj: sama Twoja odpowiedź tekstowa nie wpływa na dom. Aby coś włączyć/wyłączyć, musisz fizycznie wywołać narzędzie (Tool Call). Nigdy nie informuj o wykonaniu akcji, jeśli najpierw nie uruchomiłeś narzędzia.
 Jedyna techniczna reguła: system fizyczny wymaga dokładnych identyfikatorów (entity_id) do wykonania akcji. Jeśli ich jeszcze nie znasz dla danego urządzenia, odszukaj je przy pomocy odpowiednich narzędzi przed wydaniem komendy wykonawczej.
-Po zakończeniu zadania poinformuj użytkownika o rezultacie w naturalny, zwięzły sposób (po polsku)."""
+Po zakończeniu zadania poinformuj użytkownika o rezultacie w naturalny, zwięzły sposób (po polsku).
+W historii konwersacji (Twojej i użytkownika) dodane są sztuczne znaczniki czasowe w formacie [HH:MM:SS], aby dać Ci orientację w czasie. Pod żadnym pozorem nie dodawaj tych znaczników we własnych generowanych odpowiedziach. Pisz zwykłym tekstem. Użytkownik widzi czas we własnym interfejsie."""
 
 TIER_RULES = {
     "basic": "Działasz w trybie ograniczonym (Basic). Jeśli użytkownik prosi o zaawansowaną analizę, poinformuj go, że Twoja wersja modelu jest na to za słaba.",
@@ -146,11 +147,21 @@ class LLMEngine:
         """
         prompt_to_use = f"{BASE_SYSTEM_PROMPT}\n{TIER_RULES.get(self.tier, TIER_RULES['basic'])}"
         messages = [{"role": "system", "content": prompt_to_use}]
-        # Przekazujemy do Ollamy tylko pola role i content, ucinając nasz wewnętrzny timestamp oraz ignorując customowe role
-        messages.extend([{"role": m["role"], "content": m["content"]} for m in self.history if m["role"] not in ["tool_log"]])
-        messages.append({"role": "user", "content": prompt})
-        
+        # Przekazujemy do Ollamy pola role i content, ignorując customowe role (np. tool_log).
+        for m in self.history:
+            if m["role"] not in ["tool_log"]:
+                msg_dict = {"role": m["role"], "content": m.get("content", "")}
+                if "tool_calls" in m:
+                    msg_dict["tool_calls"] = m["tool_calls"]
+                
+                if m["role"] == "user" and "timestamp" in m:
+                    msg_dict["content"] = f"[{m['timestamp']}] {msg_dict['content']}"
+                
+                messages.append(msg_dict)
+
         now = datetime.datetime.now().strftime("%H:%M:%S")
+        messages.append({"role": "user", "content": f"[{now}] {prompt}"})
+        
         self.history.append({"role": "user", "content": prompt, "timestamp": now})
         
         while True:
@@ -205,6 +216,8 @@ class LLMEngine:
                         message["content"] = cleaned_text
 
                 if tool_calls:
+                    internal_memories = []
+                    
                     for tool_call in tool_calls:
                         function_name = tool_call["function"]["name"]
                         arguments = tool_call["function"]["arguments"]
@@ -227,10 +240,19 @@ class LLMEngine:
                                 
                         tool_result = tools_registry.execute_tool(function_name, arguments)
                         
-                        messages.append({
+                        tool_msg = {
                             "role": "tool",
                             "content": tool_result
-                        })
+                        }
+                        messages.append(tool_msg)
+                        internal_memories.append(f"Zleciłem działanie {function_name} i otrzymałem zwrotny wynik: {tool_result}")
+                        
+                    mem_str = " | ".join(internal_memories)
+                    self.history.append({
+                        "role": "assistant",
+                        "content": f"[UKRYTY SYSTEMOWY LOG - NIE PISZ O NIM: {mem_str}]",
+                        "is_internal": True
+                    })
                 else:
                     response_text = message.get("content", "")
                     now_assistant = datetime.datetime.now().strftime("%H:%M:%S")
