@@ -196,7 +196,7 @@ class LLMEngine:
             }
             
             try:
-                response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=30, stream=True)
+                response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=120, stream=True)
                 response.raise_for_status()
                 
                 full_content = ""

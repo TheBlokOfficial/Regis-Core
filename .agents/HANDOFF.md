@@ -9,6 +9,8 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 * Poprawiono nomenklaturę systemu: warstwy zostały przemianowane w kodzie i plikach z `local`/`boss` na `butler`/`regis`. Zablokowano w profilu `tier_regis.md` możliwość uciążliwego "chwalenia się" swoimi narzędziami.
 * Wdrożono "Solid-State AI" (Dynamic Deduction). Agent nie otrzymuje już listy urządzeń w system promptcie (puste biurko). Jeśli zmyśli encję, The Warden odbija akcję żądając od niego zbadania środowiska przez narzędzie `get_devices`.
 * Usunięto błędy terminalowe, naprawiając znikające myśli i podwójne entery. Wprowadzono architekturę "Infinite Scrolling REPL" w miejsce wymazywanego ekranu.
+* Zmierzono się z ograniczeniami mniejszych modeli LLM. Opracowano rozwiązanie dla "Kaskady Halucynacji" dodając rygorystyczny mechanizm **Chain of Thought** (Głośnej Analizy przed wywołaniem API) w pliku `base_system.md`. Przetestowano `qwen2.5:32b`, ostatecznie wspierając lekkiego Lokaja (`qwen2.5:7b`) i Regisa (`qwen2.5:14b`) rygorystycznymi, zimnymi temperaturami (0.1 / 0.4) w `ui/cli.py` i `main.py`.
+* Zoptymalizowano system the Wardena w `core/schemas.py` i `tools_registry.py` (`get_device_state`) o zdolność przetwarzania masowych tablic urządzeń na raz, rozwiązując problem gubienia kontekstu i pętli przez 7B. Zmieniono prompt `tier_regis.md` z zakazowego na w pełni afirmatywny, odcinając ucieczki modelu w obce języki.
 
 ## Obecny Stan Projektu
 * Interfejs graficzny działa bez zarzutów. Konsola działa płynnie jako REPL, pozwalając na scrollowanie tysięcy linii w górę, zachowując zgrabne rozdzielenia wizualne pomiędzy narzędziami a promptami.

@@ -9,6 +9,7 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Kuloodporność modelu (Solid-State AI): Dedukcja narzędzi The Warden i ekstrakcja promptów psychologicznych.
 - [x] Wdrożenie funkcji narzędziowych dla Regis: Odczytywanie Czasu (`get_current_time`) oraz Pogody z sieci (`get_weather`).
 - [x] Uproszczenie architektury i wdrożenie Zasady Apple: rezygnacja z profili na rzecz sztywnych warstw (Recepcjonista i Szef).
+- [x] Stabilizacja Tool Callingu: Wdrożenie Chain of Thought w Fazi Myśli i adaptacja architektoniczna pod modele 7B i 14B (afirmatywny prompt, array support).
 - [ ] Zaprojektowanie struktury "Pamięci Długoterminowej" (Notatnika) dla agenta LLM.
 - [ ] Stworzenie usługi telemetrycznej "Handoff" do przerzucania zadań z Maliny na PC (Boss Mode).
 - [ ] Integracja systemu WakeWord (oczekiwanie na dyskusję nt. wyboru narzędzia).

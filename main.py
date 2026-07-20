@@ -44,7 +44,7 @@ def main():
             
             if active_tier == "butler":
                 model_name = "qwen2.5:7b"
-                temperature = 0.7
+                temperature = 0.1
                 display_name = "Lokaj"
             else:
                 model_name = "qwen2.5:14b"

@@ -76,12 +76,12 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                 if llm_engine.tier == "butler":
                     llm_engine.tier = "regis"
                     llm_engine.model_name = "qwen2.5:14b"
-                    llm_engine.temperature = 0.7
+                    llm_engine.temperature = 0.4
                     display_name = "Regis"
                 else:
                     llm_engine.tier = "butler"
                     llm_engine.model_name = "qwen2.5:7b"
-                    llm_engine.temperature = 0.5
+                    llm_engine.temperature = 0.1
                     display_name = "Lokaj"
                     
                 tools_registry = ToolsRegistry(ha_client, llm_engine.tier)

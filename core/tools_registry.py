@@ -65,11 +65,20 @@ class ToolsRegistry:
             devices.append({"entity_id": entity_id, "name": data.get("friendly_name")})
         return json.dumps({"devices": devices}, ensure_ascii=False)
 
-    def _get_device_state(self, entity_id: str) -> str:
+    def _get_device_state(self, entity_id: str | list[str]) -> str:
         states = self.ha_client.get_all_states()
-        if entity_id in states:
-            return json.dumps(states[entity_id], ensure_ascii=False)
-        return json.dumps({"error": f"Urządzenie o ID {entity_id} nie zostało znalezione."}, ensure_ascii=False)
+        if isinstance(entity_id, list):
+            results = {}
+            for eid in entity_id:
+                if eid in states:
+                    results[eid] = states[eid]
+                else:
+                    results[eid] = {"error": "Urządzenie nie znalezione."}
+            return json.dumps(results, ensure_ascii=False)
+        else:
+            if entity_id in states:
+                return json.dumps(states[entity_id], ensure_ascii=False)
+            return json.dumps({"error": f"Urządzenie o ID {entity_id} nie zostało znalezione."}, ensure_ascii=False)
 
     def _execute_ha_action(self, action: str, entity_id: str, parameters: dict[str, Any]) -> str:
         try:

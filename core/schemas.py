@@ -27,8 +27,11 @@ BASE_TOOLS_SCHEMA = [
                 "type": "object",
                 "properties": {
                     "entity_id": {
-                        "type": "string",
-                        "description": "Dokładne ID encji, np. 'light.salon'"
+                        "type": ["string", "array"],
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Dokładne ID encji (np. 'light.salon') lub lista ID (np. ['light.1', 'light.2'])."
                     }
                 },
                 "required": ["entity_id"]
