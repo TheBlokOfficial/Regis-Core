@@ -40,9 +40,7 @@ pytest
 ## Dostępne komendy CLI
 
 Podczas działania aplikacji (w oknie czatu) możesz użyć następujących komend:
-- `/help` - wyświetla listę dostępnych komend i ich opis
-- `/exit` - kończy działanie programu
-- `/clear` - czyści historię konwersacji (pamięć podręczną) z obecnej sesji
-- `/tier [basic/advanced]` - zmienia poziom uprawnień (tier) przypisany do aktualnej sesji
-- `/temp [wartość 0.0 - 1.0]` - ustawia "temperaturę" (kreatywność) modelu
-- `/profiles` - wyświetla interaktywne menu wyboru profilu modelu
+- `/help` - wyświetla listę dostępnych komend
+- `/exit` - wyjście z trybu produkcyjnego
+- `/clear` - czyszczenie pamięci podręcznej rozmowy z asystentem
+- `/tier` - przełącza między wbudowanymi warstwami: Recepcjonista (Lokalny) oraz Szef (Główny Gospodarz)

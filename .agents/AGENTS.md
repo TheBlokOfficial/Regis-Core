@@ -21,7 +21,7 @@ Kiedy użytkownik zasygnalizuje koniec pracy (hasła: "na dziś to wszystko", "k
 1. **Zaktualizuj plik `.agents/HANDOFF.md`**: Opisz co dokładnie zostało zrobione w tej sesji, obecny stan kodu (czy wszystko działa, czy są błędy) oraz precyzyjne kroki startowe dla następnego agenta.
 2. **Zaktualizuj plik `.agents/TASKS.md`**: Odznacz zrealizowane zadania lub zaktualizuj ich status.
 3. **Zaktualizuj plik `walkthrough.md`**: Zrób to TYLKO wtedy, gdy wprowadzono istotne zmiany architektoniczne.
-4. **Zapisz zmiany w repozytorium**: Użyj narzędzia `run_command` w głównym katalogu projektu, aby odpalić kolejno: `git add .`, `git commit -m "Auto-zapis sesji agenta: [podsumowanie]"` oraz `git push`.
+4. **Zapisz zmiany w repozytorium**: Użyj narzędzia `run_command` w głównym katalogu projektu, aby odpalić kolejno: `git add . ; git commit -m "Auto-zapis sesji agenta: [podsumowanie]" ; git push`. (używaj średników w PowerShell, nie &&)
 Dopiero po pomyślnym wykonaniu tych kroków, poinformuj użytkownika wylistowując co dokładnie zaktualizowałeś, potwierdź wysłanie do repozytorium i pożegnaj się.
 
 **[FILOZOFIA I ARCHITEKTURA PROJEKTU]**

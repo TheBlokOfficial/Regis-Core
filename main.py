@@ -38,33 +38,27 @@ def main():
             aliases=aliases
         )
 
-        if mode_choice == "debug":
-            cli.console.print("[yellow]Tryb symulatora został usunięty w nowej architekturze Agentic Tools.[/yellow]")
-            cli.console.input("\n[dim]Naciśnij Enter...[/dim]")
-            continue
-            
-        if mode_choice == "options":
-            cli.options_flow()
-            continue
-            
+
         if mode_choice == "prod":
-            selected_profile_id = settings.get("selected_profile")
-            profiles = config.load_profiles()
-            selected_profile = next((p for p in profiles if p["profile_id"] == selected_profile_id), None)
+            active_tier = settings.get("active_tier", "local")
             
-            if not selected_profile:
-                cli.console.print("[red]Brak aktywnego profilu! Przejdź najpierw do Opcji, aby go ustawić.[/red]")
-                cli.console.input("\n[dim]Naciśnij Enter...[/dim]")
-                continue
+            if active_tier == "local":
+                model_name = "qwen2.5:7b"
+                temperature = 0.5
+                display_name = "Recepcjonista (Lokalny)"
+            else:
+                model_name = "qwen2.5:14b"
+                temperature = 0.7
+                display_name = "Szef (Główny Gospodarz)"
                 
             llm_engine = LLMEngine(
-                model_name=selected_profile["model_name"],
-                tier=selected_profile["tier"],
-                temperature=selected_profile.get("temperature", 0.5),
+                model_name=model_name,
+                tier=active_tier,
+                temperature=temperature,
                 history_limit=settings.get("history_limit", 10)
             )
             
-            cli.run_production_loop(llm_engine, ha_client, selected_profile["name"])
+            cli.run_production_loop(llm_engine, ha_client, display_name)
 
 if __name__ == "__main__":
     main()

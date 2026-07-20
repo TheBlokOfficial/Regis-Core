@@ -5,7 +5,6 @@ from typing import Any
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-PROFILES_FILE = os.path.join(DATA_DIR, "profiles.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 ALIASES_FILE = os.path.join(DATA_DIR, "aliases.json")
 
@@ -16,8 +15,7 @@ def load_settings() -> dict[str, Any]:
         dict[str, Any]: Słownik z konfiguracją systemu.
     """
     default_settings = {
-        "selected_profile": None, 
-        "temperature": 0.5,
+        "active_tier": "local", 
         "history_limit": 10,
         "ha_url": "http://192.168.0.50:8123",
         "ha_token": "TWÓJ_TOKEN_TUTAJ"
@@ -56,27 +54,3 @@ def load_aliases() -> dict[str, str]:
         except json.JSONDecodeError:
             return {}
 
-def load_profiles() -> list[dict]:
-    """Ładuje zapisaną listę profili modeli.
-    
-    Returns:
-        list[dict]: Lista obiektów profili.
-    """
-    if not os.path.exists(PROFILES_FILE):
-        return []
-    with open(PROFILES_FILE, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return []
-
-def save_profiles(profiles: list[dict]) -> None:
-    """Zapisuje listę profili modeli.
-    
-    Args:
-        profiles (list[dict]): Lista profili do zapisu.
-    """
-    if not os.path.exists(DATA_DIR):
-        os.makedirs(DATA_DIR)
-    with open(PROFILES_FILE, "w", encoding="utf-8") as f:
-        json.dump(profiles, f, indent=4)

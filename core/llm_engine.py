@@ -20,8 +20,8 @@ Po zakończeniu zadania poinformuj użytkownika o rezultacie w naturalny, zwięz
 W historii konwersacji (Twojej i użytkownika) dodane są sztuczne znaczniki czasowe w formacie [HH:MM:SS], aby dać Ci orientację w czasie. Pod żadnym pozorem nie dodawaj tych znaczników we własnych generowanych odpowiedziach. Pisz zwykłym tekstem. Użytkownik widzi czas we własnym interfejsie."""
 
 TIER_RULES = {
-    "basic": "Działasz w trybie ograniczonym (Basic). Jeśli użytkownik prosi o zaawansowaną analizę, poinformuj go, że Twoja wersja modelu jest na to za słaba.",
-    "advanced": "Jesteś zaawansowaną AI o dużej swobodzie decyzyjnej. Proaktywnie zarządzaj domem, przewiduj potrzeby i proponuj optymalizacje."
+    "local": "Jesteś lokalnym Recepcjonistą pierwszego kontaktu. Działasz szybko, wykonujesz podstawowe komendy domowe. Jeśli zadanie wymaga złożonej dedukcji, wzywasz Szefa.",
+    "boss": "Jesteś Głównym Gospodarzem (Szefem). Jesteś potężnym modelem AI o dużej swobodzie decyzyjnej. Proaktywnie zarządzaj domem, przewiduj potrzeby i rozwiązuj skomplikowane problemy."
 }
 
 class LLMEngine:
@@ -145,7 +145,8 @@ class LLMEngine:
         Raises:
             LLMConnectionError: Jeśli wygenerowanie odpowiedzi się nie powiodło.
         """
-        prompt_to_use = f"{BASE_SYSTEM_PROMPT}\n{TIER_RULES.get(self.tier, TIER_RULES['basic'])}"
+        # System Prompt budowany dynamicznie na podstawie aktywnej warstwy
+        prompt_to_use = f"{BASE_SYSTEM_PROMPT}\n{TIER_RULES.get(self.tier, TIER_RULES['local'])}"
         messages = [{"role": "system", "content": prompt_to_use}]
         # Przekazujemy do Ollamy pola role i content, ignorując customowe role (np. tool_log).
         for m in self.history:
