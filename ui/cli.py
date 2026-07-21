@@ -81,6 +81,11 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                     llm_engine.model_name = "qwen2.5:14b-instruct"
                     llm_engine.temperature = 0.4
                     display_name = "Regis"
+                elif llm_engine.tier == "regis":
+                    llm_engine.tier = "prime"
+                    llm_engine.model_name = "qwen2.5:32b-instruct"
+                    llm_engine.temperature = 0.4
+                    display_name = "Regis Prime"
                 else:
                     llm_engine.tier = "butler"
                     llm_engine.model_name = "qwen2.5:7b-instruct"

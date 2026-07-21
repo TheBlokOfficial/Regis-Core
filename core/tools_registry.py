@@ -14,11 +14,21 @@ class ToolsRegistry:
         # Schematy narzędzi importowane z zewnętrznego pliku
         base_tools_schema = BASE_TOOLS_SCHEMA
         
+        # Definicja poziomów uprawnień
+        tier_clearance = {
+            "butler": 1,
+            "regis": 2,
+            "prime": 3
+        }
+        current_clearance = tier_clearance.get(self.tier, 1)
+        
         # Filtrowanie narzędzi na podstawie tieru
         filtered_schema = []
         for tool in base_tools_schema:
             req_tier = tool.get("required_tier", "butler")
-            if self.tier == "butler" and req_tier == "regis":
+            tool_clearance = tier_clearance.get(req_tier, 1)
+            
+            if current_clearance < tool_clearance:
                 continue
                 
             # Usuwamy niestandardowe pole "required_tier", ponieważ API Ollamy może je odrzucić

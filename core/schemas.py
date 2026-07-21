@@ -128,7 +128,7 @@ BASE_TOOLS_SCHEMA = [
                 "properties": {
                     "fact": {
                         "type": "string",
-                        "description": "Treść faktu do zapamiętania, np. 'Mieszka w Nysie', 'Nie lubi wstawania wcześnie'."
+                        "description": "Treść faktu do zapamiętania. KATEGORYCZNY NAKAZ: Nie wklejaj suchych wycinków tekstu. Zawsze redaguj fakt jako pełne, obiektywne zdanie w 3. osobie z bogatym kontekstem. Zamiast 'Nysa' napisz 'Użytkownik poinformował, że obecnie mieszka w Nysie'."
                     }
                 },
                 "required": ["fact"]
