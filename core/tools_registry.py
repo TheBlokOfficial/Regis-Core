@@ -54,6 +54,10 @@ class ToolsRegistry:
                 return self._save_note(arguments.get("key", ""), arguments.get("content", ""))
             elif tool_name == "queue_note":
                 return self._queue_note(arguments.get("fact", ""))
+            elif tool_name == "read_queue":
+                return self._read_queue()
+            elif tool_name == "clear_queue":
+                return self._clear_queue(arguments.get("ids", []))
             elif tool_name == "read_notes":
                 return self._read_notes(arguments.get("key"))
             elif tool_name == "delete_note":
@@ -183,7 +187,7 @@ class ToolsRegistry:
             return False
 
     def _queue_note(self, fact: str) -> str:
-        import os, json, datetime
+        import os, json, datetime, uuid
         if not fact:
             return json.dumps({"error": "Brakuje faktu do zapisania."}, ensure_ascii=False)
         
@@ -197,6 +201,7 @@ class ToolsRegistry:
                 pass
                 
         pending.append({
+            "id": uuid.uuid4().hex[:8],
             "timestamp": datetime.datetime.now().isoformat(),
             "fact": fact
         })
@@ -209,6 +214,46 @@ class ToolsRegistry:
         except Exception as e:
             logging.error(f"Błąd zapisu do kolejki notatek: {e}")
             return json.dumps({"error": "Nie udało się zapisać faktu do kolejki."}, ensure_ascii=False)
+
+    def _read_queue(self) -> str:
+        import os, json
+        path = os.path.join("data", "pending_notes.json")
+        if not os.path.exists(path):
+            return json.dumps({"result": "empty", "message": "Kolejka brudnopisu jest pusta."}, ensure_ascii=False)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                pending = json.load(f)
+            if not pending:
+                return json.dumps({"result": "empty", "message": "Kolejka brudnopisu jest pusta."}, ensure_ascii=False)
+            return json.dumps({"pending_notes": pending}, ensure_ascii=False)
+        except Exception as e:
+            logging.error(f"Błąd odczytu kolejki: {e}")
+            return json.dumps({"error": "Błąd odczytu pliku pending_notes.json."}, ensure_ascii=False)
+
+    def _clear_queue(self, ids: list[str]) -> str:
+        import os, json
+        if not ids or not isinstance(ids, list):
+            return json.dumps({"error": "Musisz podać listę 'ids' do usunięcia."}, ensure_ascii=False)
+            
+        path = os.path.join("data", "pending_notes.json")
+        if not os.path.exists(path):
+            return json.dumps({"error": "Kolejka nie istnieje."}, ensure_ascii=False)
+            
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                pending = json.load(f)
+                
+            original_len = len(pending)
+            pending = [note for note in pending if note.get("id") not in ids]
+            
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(pending, f, ensure_ascii=False, indent=4)
+                
+            removed = original_len - len(pending)
+            return json.dumps({"result": "success", "message": f"Usunięto {removed} notatek z kolejki brudnopisu."}, ensure_ascii=False)
+        except Exception as e:
+            logging.error(f"Błąd czyszczenia kolejki: {e}")
+            return json.dumps({"error": "Wystąpił błąd podczas usuwania pozycji z kolejki."}, ensure_ascii=False)
 
     def _save_note(self, key: str, content: str) -> str:
         if not key or not content:

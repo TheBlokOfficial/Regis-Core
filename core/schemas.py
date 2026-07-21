@@ -139,6 +139,40 @@ BASE_TOOLS_SCHEMA = [
         "type": "function",
         "required_tier": "regis",
         "function": {
+            "name": "read_queue",
+            "description": "Odczytuje zawartość kolejki brudnopisu (Staging).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "required_tier": "regis",
+        "function": {
+            "name": "clear_queue",
+            "description": "Usuwa przetworzone i zarchiwizowane notatki z kolejki brudnopisu na podstawie podanych ID. Używaj tego narzędzia tylko PO otrzymaniu wyniku potwierdzającego sukces z narzędzia save_note.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Lista identyfikatorów (ID) notatek do usunięcia z kolejki."
+                    }
+                },
+                "required": ["ids"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "required_tier": "regis",
+        "function": {
             "name": "save_note",
             "description": "Zapisuje nową notatkę lub nadpisuje istniejącą w Pamięci Długoterminowej. Używaj tego do zapamiętywania preferencji użytkownika.",
             "parameters": {
