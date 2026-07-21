@@ -208,9 +208,30 @@ class LLMEngine:
             iteration_count += 1
             parser.reset_state()
             
+            # Wzorzec Blackboard: Wstrzykiwanie aktualnego stanu z dysku w każdej iteracji
+            import os
+            queue_state_content = "Brak zaległych notatek w kolejce."
+            if os.path.exists("data/pending_notes.json"):
+                try:
+                    with open("data/pending_notes.json", "r", encoding="utf-8") as f:
+                        pending = json.load(f)
+                        if pending:
+                            queue_state_content = json.dumps(pending, ensure_ascii=False, indent=2)
+                except Exception:
+                    queue_state_content = "Błąd odczytu kolejki z dysku."
+                    
+            state_injection = {
+                "role": "system",
+                "content": f"<queue_state>\n{queue_state_content}\n</queue_state>"
+            }
+            
+            # Bezpieczna kopia wiadomości, do której na sam dół dodajemy świeży stan
+            current_messages = messages.copy()
+            current_messages.append(state_injection)
+            
             payload = {
                 "model": self.model_name,
-                "messages": messages,
+                "messages": current_messages,
                 "tools": tools_registry.tools_schema,
                 "stream": True,
                 "options": {
