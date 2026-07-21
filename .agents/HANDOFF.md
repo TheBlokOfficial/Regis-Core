@@ -11,6 +11,8 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
   2. *Warstwa 2 (API):* Wstrzyknięcie Stop Tokens (`"stop": ["</tool_call>", "</tool_call >"]`) w payload Ollamy.
   3. *Warstwa 3 (Parser):* Limiter w głównej pętli Pythona (oraz fallback parserze), który twardo odcina nadmiarowe narzędzia i śmieci (zostawiając tylko pierwsze), zachowując sterylną higienę historii konwersacyjnej dla LLM.
 * **[PROMPT ANCHORING FIX]** Rozwiązano problem, gdzie model nadgorliwie wywoływał `get_current_time()` w reakcji na zwykłe "Cześć" z powodu braku alternatywnych instrukcji w prompcie. W `base_system.md` dopisano nową regułę powstrzymywania się od akcji oraz **Drugi Kontrastujący Przykład Few-Shot**, w którym model widzi, że na powitanie ma odpowiedzieć tylko krótką gotowością.
+* **[MEMORY CONSOLIDATION & ATOMIC ACTIONS]** Rozwiązano problem "Pętli Archiwisty" (State-History Conflict, LLM zapętlał się wykonując nieskończone `save_note` po odświeżeniu niezmienionego `<desk_state>`). Wdrożono wzorzec architektoniczny **Atomic Actions**: `save_note` przyjmuje opcjonalny parametr `clear_queue_ids`, który w jednym wywołaniu zapisuje fakt na dysk i natychmiast usuwa go z Brudnopisu (Stagingu).
+* **[QWEN HALLUCINATION FIX]** Modele Qwen 2.5 Instruct wykazują silną alergię na negatywne formatowanie (Negative Framing) i sprzeczne wewnętrznie instrukcje (np. nakaz outputowania `<tool_call>` przy jednoczesnym ukrytym wymuszaniu formatu natywnego przez Ollamę). Skutkowało to "LLM Brain Freeze" i generowaniem losowych tagów takich jak `<translation>`. Usunięto konflikty i zastosowano pozytywne ramowanie we wszystkich promptach. Dodano twardy nakaz używania języka polskiego.
 
 ## Obecny Stan Projektu
 
