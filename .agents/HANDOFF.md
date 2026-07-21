@@ -3,28 +3,24 @@
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
 ## Ostatnia Aktywność
-* Wydzielono założenia projektowe z `AGENTS.md` do dedykowanego pliku `docs/ARCHITECTURE.md` (Zasada Apple, RPi5 dla `qwen2.5:7b` oraz PC dla `qwen2.5:14b`).
-* Usunięto cały stary system profili (`profiles.json`) oraz zrefaktoryzowano architekturę tak, aby działała w oparciu o sztywno zdefiniowane warstwy (tier): `local` (Recepcjonista) i `boss` (Główny Gospodarz).
-* Wyekstraktowano wszystkie prompty psychologiczne z kodu Pythonowego do plików Markdown (`data/prompts/`). Baza jest oddzielona od charyzmatycznego Regisa i surowego Lokaja. Silnik ładuje je używając Lazy Loadingu.
-* Poprawiono nomenklaturę systemu: warstwy zostały przemianowane w kodzie i plikach z `local`/`boss` na `butler`/`regis`. Zablokowano w profilu `tier_regis.md` możliwość uciążliwego "chwalenia się" swoimi narzędziami.
-* Wdrożono "Solid-State AI" (Dynamic Deduction). Agent nie otrzymuje już listy urządzeń w system promptcie (puste biurko). Jeśli zmyśli encję, The Warden odbija akcję żądając od niego zbadania środowiska przez narzędzie `get_devices`.
-* Usunięto błędy terminalowe, naprawiając znikające myśli i podwójne entery. Wprowadzono architekturę "Infinite Scrolling REPL" w miejsce wymazywanego ekranu.
-* Zmierzono się z ograniczeniami mniejszych modeli LLM. Opracowano rozwiązanie dla "Kaskady Halucynacji" dodając rygorystyczny mechanizm **Chain of Thought** (Głośnej Analizy przed wywołaniem API) w pliku `base_system.md`. Przetestowano `qwen2.5:32b`, ostatecznie wspierając lekkiego Lokaja (`qwen2.5:7b`) i Regisa (`qwen2.5:14b`) rygorystycznymi, zimnymi temperaturami (0.1 / 0.4) w `ui/cli.py` i `main.py`.
-* Zoptymalizowano system the Wardena w `core/schemas.py` i `tools_registry.py` (`get_device_state`) o zdolność przetwarzania masowych tablic urządzeń na raz, rozwiązując problem gubienia kontekstu i pętli przez 7B. Zmieniono prompt `tier_regis.md` z zakazowego na w pełni afirmatywny, odcinając ucieczki modelu w obce języki.
+* Zaimplementowano Pamięć Długoterminową (Notatnik). Zrefaktoryzowano prompt systemowy w `base_system.md`, eliminując sztywne zakazy nakładające "paranoję" na model. Przełączono model na podejście proaktywne: ma swobodę rozmawiania, dopytywania o kontekst i ZAWSZE sprawdza `read_notes` przed zadawaniem pytań w ciemno.
+* Dostosowano parametry LLM w `core/llm_engine.py`: Zwiększono karę za powtórzenia na ostrożne 1.05 (wcześniej 1.15 powodowało "ucieczkę" Qwen 2.5 14b w język rosyjski). Zastosowano dynamiczny `num_predict` (500 dla myśli, ograniczające 150 dla odpowiedzi).
+* Dodano komendę `/models` w `ui/cli.py` umożliwiającą szybkie testowanie (hot-swap) różnych modeli z Ollamy za pomocą interfejsu questionary podczas jednej sesji.
 
 ## Obecny Stan Projektu
 * Interfejs graficzny działa bez zarzutów. Konsola działa płynnie jako REPL, pozwalając na scrollowanie tysięcy linii w górę, zachowując zgrabne rozdzielenia wizualne pomiędzy narzędziami a promptami.
 * Model posiada genialny wewnętrzny monolog strumieniowany w locie kolorem szarym (`🧠 Myśli agenta:`).
-* Funkcje narzędziowe (Tool Calling) zostały zrefaktoryzowane pod kątem "kuloodporności". Wdrożono "The Warden" w `core/tools_registry.py`, który odrzuca halucynacje z twardym błędem informacyjnym.
-* Wdrożono rozwiązanie **Two-Pass Generation**. W pierwszej pętli agent głośno myśli z temp 0.1, po odnalezieniu wyników z narzędzi generuje końcową, charyzmatyczną odpowiedź dla użytkownika.
+* Wdrożono rozwiązanie **Two-Pass Generation**.
+* Pamięć długoterminowa jest w 100% stabilna (dynamiczne czytanie z/do dysku przez JSON). Model 14b/32b skutecznie posługuje się nią by omijać halucynacje.
 
 ## Następne Kroki (Next Steps)
-1. **Długoterminowa Pamięć (Notatnik):** Zaimplementowanie notatnika, o którym rozmawiano z użytkownikiem, by bot zapamiętywał miasto dla pogody. To jest NAJWYŻSZY priorytet na początek następnej sesji.
-2. **Handoff (Boss Mode):** System w tle na PC nasłuchujący żądań i delegowanie do modelu 14b, jeśli dostępne są zasoby VRAM.
-3. **System Audio:** Badania i integracja WakeWord (Porcupine / OpenWakeWord) oraz silnika STT (Whisper).
+1. **Handoff (Boss Mode):** System w tle na PC nasłuchujący żądań i delegowanie do modelu 14b, jeśli dostępne są zasoby VRAM.
+2. **System Audio:** Badania i integracja WakeWord (Porcupine / OpenWakeWord) oraz silnika STT (Whisper).
+3. **Optymalizacja Modelu 32b:** Model jest doskonały pod kątem logiki, ale wysyca VRAM na RTX 5070 i powoduje dramatyczne "zwisy" (aż 15 sekund na odzew) z uwagi na RAM offloading. Znaleźć złoty środek między inteligencją 14b a możliwościami dedykowanymi pod STT.
 
 ## Wiedza i Przemyślenia (Gotchas)
 * Pamiętaj o zachowaniu ascetycznego UX. Unikaj bogatych, krzykliwych kolorów (tylko zgaszona zieleń lub szarość). W konsoli odstawiliśmy skomplikowane grafiki by uzyskać potężny terminal REPL.
-* Małe modele 7B są potężnie leniwe bez myślenia na głos. Muszą prowadzić monolog. Jeśli wdrożysz nową mechanikę i zniknie strumień myśli z terminala - przerwij i to napraw, bo jakość spadnie drastycznie!
-* Nie dodawaj agentom instrukcji jak do głupków ("Zasada Krytyczna: zrób to czy tamto"). Daj im same narzędzia i pozwól działać. To prawdziwe Agenty!
+* Małe modele 7B/14B są potężnie leniwe bez myślenia na głos. Muszą prowadzić monolog. Jeśli wdrożysz nową mechanikę i zniknie strumień myśli z terminala - przerwij i to napraw, bo jakość spadnie drastycznie!
+* Modele z rodziny Qwen mają gigantyczną bazę danych w wielu językach (np. rosyjski, chiński). Zbyt wysokie `repeat_penalty` (np. 1.15) zmusza je do ratowania się przed powtórzeniami ucieczką w inny język! Pilnuj tego parametru.
+* Nie dodawaj agentom instrukcji jak do głupków ("Zasada Krytyczna: zrób to czy tamto"). Daj im same narzędzia, stwórz przykład few-shot lub jasno napisz kontekst, a poradzą sobie genialnie.
 * Zawsze używaj operatora średnika `;` zamiast `&&` w terminalu podczas pracy, ponieważ OS to Windows/PowerShell.

@@ -38,7 +38,7 @@ def print_header(title: str):
 
 
 def print_production_header(model_name: str, tier: str, display_name: str, temperature: float = 0.5):
-    console.print(f"[bold white]REGIS CORE[/bold white] [dim]| Warstwa: {display_name} | Model: {model_name} | Temp: {temperature}[/dim]\n[dim]Komendy: '/exit' / '/clear' / '/tier'[/dim]")
+    console.print(f"[bold white]REGIS CORE[/bold white] [dim]| Warstwa: {display_name} | Model: {model_name} | Temp: {temperature}[/dim]\n[dim]Komendy: '/exit' / '/clear' / '/tier' / '/models'[/dim]")
     console.print(Rule(style="dim"))
     console.print("")
 
@@ -59,7 +59,8 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                 console.print("[dim]/help[/dim] - [dim]Wyświetla tę listę komend[/dim]")
                 console.print("[dim]/exit[/dim] - [dim]Kończy działanie programu[/dim]")
                 console.print("[dim]/clear[/dim] - [dim]Czyści historię bieżącej konwersacji[/dim]")
-                console.print("[dim]/tier[/dim] - [dim]Przełącza pomiędzy Lokajem a Regisem na obecną sesję[/dim]\n")
+                console.print("[dim]/tier[/dim] - [dim]Przełącza pomiędzy Lokajem a Regisem na obecną sesję[/dim]")
+                console.print("[dim]/models[/dim] - [dim]Pozwala zmienić aktywny model LLM z listy dostępnych na Ollamie[/dim]\n")
                 console.input("[dim]Naciśnij Enter, aby kontynuować...[/dim]")
                 clear_screen()
                 print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
@@ -92,6 +93,25 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                 clear_screen()
                 print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
                 console.print(f"\n[green]Pomyślnie przełączono na warstwę: {display_name}[/green]")
+                continue
+                
+            if user_input.lower() == "/models":
+                available_models = LLMEngine.get_available_models()
+                if not available_models:
+                    console.print("[red]Nie udało się pobrać listy modeli z Ollamy (czy serwer działa?).[/red]")
+                    continue
+                
+                selected_model = questionary.select(
+                    "Wybierz model na tę sesję:",
+                    choices=available_models,
+                    style=custom_style
+                ).ask()
+                
+                if selected_model:
+                    llm_engine.model_name = selected_model
+                    clear_screen()
+                    print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
+                    console.print(f"\n[green]Zmieniono model na: {selected_model}[/green]")
                 continue
                 
             if not user_input.strip():

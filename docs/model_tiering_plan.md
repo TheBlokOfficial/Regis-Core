@@ -5,13 +5,13 @@ Zbudowanie w Regis-Core wbudowanego **Frameworka Kategoryzacji Modeli**. Oszczę
 ## Zarys Architektury
 
 ### 1. Detekcja Klasy Modelu (Tiering)
-Dodamy nową koncepcję "Klasy Modelu" (`basic` vs `advanced`).
+Dodamy nową koncepcję "Klasy Modelu" (`butler` vs `regis`).
 System będzie klasyfikował model podczas uruchamiania pętli (np. w `llm_engine.py` lub `config.py`):
-- Automatycznie na podstawie nazwy (jeśli zawiera `7b`, `8b` -> `basic`; jeśli `70b`, `gpt`, `claude` -> `advanced`).
+- Automatycznie na podstawie nazwy (jeśli zawiera `7b`, `8b` -> `butler`; jeśli `70b`, `gpt`, `claude` -> `regis`).
 - (Opcjonalnie) nadpisywane w `settings.json`, jeśli użytkownik chce wymusić klasę.
 
 ### 2. Rozwidlenie Narzędzi (Tool Scoping) w `tools_registry.py`
-Narzędzia zostaną opatrzone atrybutem wymaganego poziomu, np. `required_tier: "advanced"`.
+Narzędzia zostaną opatrzone atrybutem wymaganego poziomu, np. `required_tier: "regis"`.
 Gdy pętla ładuje `tools_registry`, filtruje dostępne schematy narzędzi:
 - **Mały model (Basic)**: Otrzymuje tylko podstawowe operacje (np. odczyt urządzeń, proste przełączanie).
 - **Duży model (Advanced)**: Otrzymuje dostęp do wszystkich powyższych + narzędzi zaawansowanych (gdy takowe dodamy w przyszłości, np. "Uruchom Skrypt HA", "Analiza Logów HA", "Sprawdź pogodę i ustal harmonogram").

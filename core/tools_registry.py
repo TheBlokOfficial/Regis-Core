@@ -7,7 +7,7 @@ from core.schemas import BASE_TOOLS_SCHEMA
 class ToolsRegistry:
     """Rejestr narzędzi dostarczanych dla modelu LLM."""
     
-    def __init__(self, ha_client, tier: str = "advanced"):
+    def __init__(self, ha_client, tier: str = "regis"):
         self.ha_client = ha_client
         self.tier = tier
         
@@ -17,8 +17,8 @@ class ToolsRegistry:
         # Filtrowanie narzędzi na podstawie tieru
         filtered_schema = []
         for tool in base_tools_schema:
-            req_tier = tool.get("required_tier", "basic")
-            if self.tier == "basic" and req_tier == "advanced":
+            req_tier = tool.get("required_tier", "butler")
+            if self.tier == "butler" and req_tier == "regis":
                 continue
                 
             # Usuwamy niestandardowe pole "required_tier", ponieważ API Ollamy może je odrzucić
@@ -50,6 +50,12 @@ class ToolsRegistry:
                 return self._get_current_time()
             elif tool_name == "get_weather":
                 return self._get_weather(arguments.get("location", ""))
+            elif tool_name == "save_note":
+                return self._save_note(arguments.get("key", ""), arguments.get("content", ""))
+            elif tool_name == "read_notes":
+                return self._read_notes(arguments.get("key"))
+            elif tool_name == "delete_note":
+                return self._delete_note(arguments.get("key", ""))
             else:
                 return f'{{"error": "Nieznane narzędzie: {tool_name}"}}'
         except Exception as e:
@@ -145,3 +151,63 @@ class ToolsRegistry:
             return json.dumps({"error": f"Nie udało się połączyć z serwisem pogodowym: {str(e)}"}, ensure_ascii=False)
         except Exception as e:
             return json.dumps({"error": f"Błąd parsowania danych o pogodzie: {str(e)}"}, ensure_ascii=False)
+
+    def _get_memory_path(self) -> str:
+        import os
+        return os.path.join("data", "memory.json")
+
+    def _load_memory(self) -> dict:
+        import os, json
+        path = self._get_memory_path()
+        if not os.path.exists(path):
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Błąd wczytywania pamięci: {e}")
+            return {}
+
+    def _save_memory(self, memory: dict) -> bool:
+        import os, json
+        path = self._get_memory_path()
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(memory, f, ensure_ascii=False, indent=4)
+            return True
+        except Exception as e:
+            logging.error(f"Błąd zapisywania pamięci: {e}")
+            return False
+
+    def _save_note(self, key: str, content: str) -> str:
+        if not key or not content:
+            return json.dumps({"error": "Brakuje klucza lub treści notatki."}, ensure_ascii=False)
+        memory = self._load_memory()
+        memory[key] = content
+        if self._save_memory(memory):
+            return json.dumps({"result": "success", "message": f"Zapisano notatkę pod kluczem '{key}'."}, ensure_ascii=False)
+        return json.dumps({"error": "Nie udało się zapisać notatki na dysku."}, ensure_ascii=False)
+
+    def _read_notes(self, key: str = None) -> str:
+        memory = self._load_memory()
+        if not memory:
+            return json.dumps({"message": "Notatnik jest pusty."}, ensure_ascii=False)
+        if key:
+            if key in memory:
+                return json.dumps({key: memory[key]}, ensure_ascii=False)
+            else:
+                return json.dumps({"error": f"Nie znaleziono notatki o kluczu '{key}'."}, ensure_ascii=False)
+        else:
+            return json.dumps({"keys": list(memory.keys())}, ensure_ascii=False)
+
+    def _delete_note(self, key: str) -> str:
+        if not key:
+            return json.dumps({"error": "Brakuje klucza notatki do usunięcia."}, ensure_ascii=False)
+        memory = self._load_memory()
+        if key in memory:
+            del memory[key]
+            if self._save_memory(memory):
+                return json.dumps({"result": "success", "message": f"Usunięto notatkę '{key}'."}, ensure_ascii=False)
+            return json.dumps({"error": "Nie udało się zapisać zmian na dysku."}, ensure_ascii=False)
+        return json.dumps({"error": f"Nie znaleziono notatki o kluczu '{key}'."}, ensure_ascii=False)

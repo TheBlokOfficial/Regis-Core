@@ -21,7 +21,7 @@ class LLMEngine:
         
         Args:
             model_name (str): Nazwa modelu używanego w Ollamie.
-            tier (str): Klasa modelu (np. basic lub advanced).
+            tier (str): Klasa modelu (np. butler lub regis).
             temperature (float): Poziom losowości generowanych odpowiedzi.
             tool_temperature (float): Poziom losowości dla wywoływania narzędzi.
             history_limit (int): Maksymalna liczba pamiętanych wiadomości.
@@ -145,7 +145,7 @@ class LLMEngine:
                 
         return tool_calls, message_content
 
-    def generate_response(self, prompt: str, tools_registry, status_callback: Any = None, stream_callback: Any = None) -> str:
+    def generate_response(self, prompt: str, tools_registry, status_callback: Any = None, stream_callback: Any = None, final_response_callback: Any = None) -> str:
         """Generuje zapytanie do modelu LLM z użyciem narzędzi i historii.
         
         Args:
@@ -153,6 +153,8 @@ class LLMEngine:
             tools_registry: Instancja rejestru narzędzi.
             status_callback (callable): Funkcja wywoływana z informacją o używanych narzędziach.
             stream_callback (callable): Funkcja wywoływana z każdym nowym tokenem tekstu.
+            final_response_callback (callable): Wywoływana dokładnie raz z kompletnym tekstem finalnej
+                odpowiedzi agenta (po zakończeniu pętli ReAct). Przeznaczona dla warstwy TTS.
             
         Returns:
             str: Tekstowa odpowiedź od modelu.
@@ -188,12 +190,17 @@ class LLMEngine:
                 "model": self.model_name,
                 "messages": messages,
                 "stream": True,
-                "tools": tools_registry.tools_schema,
                 "options": {
                     "temperature": current_temp,
-                    "num_ctx": 4096
+                    "num_ctx": 4096,
+                    "top_p": 0.8,
+                    "repeat_penalty": 1.05,
+                    "num_predict": 500 if is_tool_pass else 150
                 }
             }
+            
+            if is_tool_pass:
+                payload["tools"] = tools_registry.tools_schema
             
             try:
                 response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=120, stream=True)
@@ -298,6 +305,9 @@ class LLMEngine:
                     
                     if len(self.history) > self.history_limit:
                         self.history = self.history[-self.history_limit:]
+
+                    if final_response_callback:
+                        final_response_callback(response_text)
                         
                     return response_text
                     
