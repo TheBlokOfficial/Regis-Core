@@ -16,6 +16,7 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Usunięcie Two-Pass Generation — uproszczenie do single-pass ReAct z jedną stałą temperaturą.
 - [x] Przebudowa promptów systemowych na format wypunktowanych list (lepsze instruction following dla Instruct).
 - [x] Wdrożenie wewnętrznego monologu `<thought>...</thought>` z real-time streamingiem w CLI.
+- [x] Refaktoryzacja pętli konwersacyjnej ReAct na architekturę Event-Driven ze StreamingTokenParserem.
 - [ ] Stworzenie usługi telemetrycznej "Handoff" do przerzucania zadań z Maliny na PC (Boss Mode).
 - [ ] Integracja systemu WakeWord (oczekiwanie na dyskusję nt. wyboru narzędzia).
 - [ ] Integracja systemu Speech-To-Text.

@@ -6,6 +6,7 @@ from typing import Any
 import datetime
 
 from core.exceptions import LLMConnectionError
+from core.stream_parser import StreamingTokenParser
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_GENERATE_URL = f"{OLLAMA_BASE_URL}/api/generate"
@@ -79,41 +80,60 @@ class LLMEngine:
         self.history = []
         logging.info("Wyczyszczono historię konwersacji LLM.")
 
-    def _parse_fallback_tool_calls(self, response_text: str, valid_tools: list[str], status_callback: Any = None) -> tuple[list[dict], str]:
-        """Próbuje wyciągnąć zgubione wywołania narzędzi z surowego tekstu odpowiedzi."""
+    def _parse_fallback_tool_calls(self, response_text: str, valid_tools: list[str]) -> tuple[list[dict], str]:
+        """Próbuje wyciągnąć zgubione wywołania narzędzi z surowego tekstu odpowiedzi, uwzględniając znaki ucieczki i stringi."""
         tool_calls = []
         extracted_jsons = []
+        
+        # Fuzzy JSON repair: parser stosowy odporny na cudzysłowy w tekście
         stack = []
         start_idx = -1
+        in_string = False
+        escape_next = False
+        
         for i, char in enumerate(response_text):
-            if char == '{':
-                if not stack:
-                    start_idx = i
-                stack.append(char)
-            elif char == '}':
-                if stack:
-                    stack.pop()
+            if escape_next:
+                escape_next = False
+                continue
+                
+            if char == '\\':
+                escape_next = True
+                continue
+                
+            if char == '"':
+                in_string = not in_string
+                continue
+                
+            if not in_string:
+                if char == '{':
                     if not stack:
-                        json_str = response_text[start_idx:i+1]
-                        try:
-                            parsed = json.loads(json_str)
-                            if isinstance(parsed, dict):
-                                extracted_jsons.append((parsed, start_idx, i+1))
-                        except json.JSONDecodeError:
-                            pass
+                        start_idx = i
+                    stack.append(char)
+                elif char == '}':
+                    if stack:
+                        stack.pop()
+                        if not stack:
+                            json_str = response_text[start_idx:i+1]
+                            try:
+                                parsed = json.loads(json_str)
+                                if isinstance(parsed, dict):
+                                    extracted_jsons.append((parsed, start_idx, i+1))
+                            except json.JSONDecodeError:
+                                pass
         
         message_content = response_text
+        cuts = []
         for parsed, start_idx, end_idx in extracted_jsons:
             matched_func = None
             matched_args = None
             cut_start = start_idx
             
-            # Wzorzec A: OpenAI ({"name": "...", "arguments": {...}})
+            # Wzorzec A: OpenAI
             if "name" in parsed and "arguments" in parsed and parsed["name"] in valid_tools:
                 matched_func = parsed["name"]
                 matched_args = parsed["arguments"]
             
-            # Wzorzec B: Qwen2.5 / Mistral (nazwa_funkcji {...})
+            # Wzorzec B: Qwen2.5 / Mistral
             else:
                 prefix = message_content[:start_idx].strip().split()
                 if prefix:
@@ -121,7 +141,9 @@ class LLMEngine:
                     if potential_func in valid_tools:
                         matched_func = potential_func
                         matched_args = parsed
-                        cut_start = message_content.rfind(potential_func, 0, start_idx)
+                        found_idx = message_content.rfind(potential_func, 0, start_idx)
+                        if found_idx != -1:
+                            cut_start = found_idx
             
             if matched_func:
                 tool_calls.append({
@@ -130,43 +152,30 @@ class LLMEngine:
                         "arguments": matched_args
                     }
                 })
+                cuts.append((cut_start, end_idx))
                 logging.warning(f"Zastosowano Fallback Parsowania dla narzędzia: {matched_func}")
-                if status_callback:
-                    status_callback(f"[dim]⚠ Użyto fallbacku parsowania dla {matched_func}...[/dim]")
-                    
-                # Czyszczenie przecieku z tekstu (TTS protection)
-                # Musimy użyć regex lub string replace uważnie, ponieważ indeksy mogłyby się przesunąć. 
-                # Tutaj upraszczamy - dla znalezionych wywołań będziemy czyścić ich reprezentację po wszystkim.
 
-        # Oczyszczenie tekstu z zebranych JSONów i niechcianych znaczników.
-        for parsed, start_idx, end_idx in reversed(extracted_jsons):
-            # Prosty fallback - usuwamy blok JSON z oryginalnego tekstu 
-            json_str = response_text[start_idx:end_idx]
-            message_content = message_content.replace(json_str, "")
+        # Oczyszczenie tekstu z zebranych JSONów.
+        for c_start, c_end in reversed(cuts):
+            message_content = message_content[:c_start] + message_content[c_end:]
 
-        # Oczyszczenie z resztek markdowna lub śmieciowych znaczników Qwen 2.5
-        message_content = message_content.replace("</tool_call>", "").replace("<tool_call>", "").replace("```json", "").replace("```", "").replace("icz", "").strip()
+        # Oczyszczenie ze zbędnych śmieci
+        message_content = message_content.replace("</tool_call>", "").replace("<tool_call>", "").replace("```json", "").replace("```", "").strip()
         
         return tool_calls, message_content
 
-    def generate_response(self, prompt: str, tools_registry, status_callback: Any = None, stream_callback: Any = None, final_response_callback: Any = None) -> str:
+    def generate_response(self, prompt: str, tools_registry, on_tool_call: Any = None, on_thought_token: Any = None, on_content_token: Any = None) -> str:
         """Generuje zapytanie do modelu LLM z użyciem narzędzi i historii.
-        
-        Implementuje pętlę ReAct (Reasoning and Acting) w jednym przebiegu generowania.
-        Narzędzia są zawsze dostępne. Model sam decyduje kiedy ich użyć.
         
         Args:
             prompt (str): Polecenie od użytkownika.
             tools_registry: Instancja rejestru narzędzi.
-            status_callback (callable): Funkcja wywoływana z informacją o używanych narzędziach.
-            stream_callback (callable): Funkcja wywoływana z każdym nowym tokenem tekstu.
-            final_response_callback (callable): Wywoływana dokładnie raz z kompletnym tekstem finalnej
-                odpowiedzi agenta (po zakończeniu pętli ReAct). Przeznaczona dla warstwy TTS.
+            on_tool_call (callable): Zdarzenie użycia narzędzia.
+            on_thought_token (callable): Zdarzenie tokenu myśli.
+            on_content_token (callable): Zdarzenie tokenu treści.
             
         Returns:
             str: Tekstowa odpowiedź od modelu.
-        Raises:
-            LLMConnectionError: Jeśli wygenerowanie odpowiedzi się nie powiodło.
         """
         prompt_to_use = self._build_system_prompt()
         messages = [{"role": "system", "content": prompt_to_use}]
@@ -183,13 +192,16 @@ class LLMEngine:
         now = datetime.datetime.now().strftime("%H:%M:%S")
         messages.append({"role": "user", "content": f"[{now}] {prompt}"})
         self.history.append({"role": "user", "content": prompt, "timestamp": now})
+        
+        parser = StreamingTokenParser(on_thought_token, on_content_token)
 
-        # Pętla ReAct — kontynuuje dopóki model wywołuje narzędzia.
-        # Przy braku wywołań narzędzi model zwraca finalną odpowiedź i pętla się kończy.
-        had_tool_calls = False
-        while True:
-            # Jeśli w poprzedniej iteracji były tool_calls, teraz generujemy finalną odpowiedź.
-            is_scratchpad_phase = not had_tool_calls
+        # Pętla ReAct — domyślnie każda to faza reasoning (narzędziowa).
+        max_iterations = 15
+        iteration_count = 0
+        while iteration_count < max_iterations:
+            iteration_count += 1
+            parser.reset_state()
+            
             payload = {
                 "model": self.model_name,
                 "messages": messages,
@@ -220,18 +232,16 @@ class LLMEngine:
                     if "content" in msg_chunk and msg_chunk["content"]:
                         piece = msg_chunk["content"]
                         full_content += piece
-                        if stream_callback:
-                            stream_callback(piece, is_scratchpad_phase)
+                        parser.feed_token(piece)
 
                     if "tool_calls" in msg_chunk:
                         tool_calls_accumulator.extend(msg_chunk["tool_calls"])
 
                 response_text = full_content
 
-                # Fallback parser — gdy model wypluje JSON w tekście zamiast w tool_calls
                 if not tool_calls_accumulator and response_text:
                     valid_tools = [t["function"]["name"] for t in tools_registry.tools_schema]
-                    extracted_tool_calls, cleaned_text = self._parse_fallback_tool_calls(response_text, valid_tools, status_callback)
+                    extracted_tool_calls, cleaned_text = self._parse_fallback_tool_calls(response_text, valid_tools)
                     if extracted_tool_calls:
                         tool_calls_accumulator = extracted_tool_calls
                         response_text = cleaned_text
@@ -243,7 +253,6 @@ class LLMEngine:
                 messages.append(message)
 
                 if tool_calls_accumulator:
-                    had_tool_calls = True
                     now_assistant = datetime.datetime.now().strftime("%H:%M:%S")
                     history_assistant_msg = message.copy()
                     history_assistant_msg["timestamp"] = now_assistant
@@ -261,12 +270,15 @@ class LLMEngine:
                                 args_dict = {"raw_args": arguments}
                         else:
                             args_dict = arguments
+                            
+                        if not isinstance(args_dict, dict):
+                            args_dict = {"raw_payload": str(args_dict)}
 
                         args_str = ", ".join(f"{k}={v}" for k, v in args_dict.items())
                         log_text = f"> Regis używa: {function_name}({args_str})"
 
-                        if status_callback:
-                            status_callback(log_text)
+                        if on_tool_call:
+                            on_tool_call(log_text)
 
                         now_tool = datetime.datetime.now().strftime("%H:%M:%S")
                         self.history.append({
@@ -286,7 +298,6 @@ class LLMEngine:
                         self.history.append(history_tool_msg)
 
                 else:
-                    # Brak wywołań narzędzi — to jest finalna odpowiedź modelu.
                     response_text = message.get("content", "")
                     now_assistant = datetime.datetime.now().strftime("%H:%M:%S")
                     self.history.append({"role": "assistant", "content": response_text, "timestamp": now_assistant})
@@ -294,17 +305,15 @@ class LLMEngine:
                     if len(self.history) > self.history_limit:
                         self.history = self.history[-self.history_limit:]
 
-                    if final_response_callback:
-                        final_response_callback(response_text)
-
                     return response_text
 
             except RequestException as e:
+                # Wycofanie wiadomości użytkownika z historii połączenia w razie błędu sieci, by zapobiec spiętrzaniu asymetrycznemu
+                if self.history and self.history[-1]["role"] == "user":
+                    self.history.pop()
+                    
                 error_details = str(e)
-                if hasattr(e, 'response') and e.response is not None:
-                    try:
-                        error_details = f"{e} - {e.response.json().get('error', e.response.text)}"
-                    except Exception:
-                        error_details = f"{e} - {e.response.text}"
-                logging.error(f"Ollama Chat Error: {error_details}")
-                raise LLMConnectionError(f"Odrzucono zapytanie (HTTP Error): {error_details}")
+                logging.error(f"Błąd połączenia LLMEngine: {error_details}")
+                raise LLMConnectionError(f"Nie udało się połączyć z usługą. {error_details}")
+        
+        return "Przerwano zapytanie. Przekroczono maksymalną liczbę wywołań wewnętrznych narzędzi w systemie (Timeout pętli)."

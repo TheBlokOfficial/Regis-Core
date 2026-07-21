@@ -157,145 +157,56 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                 
             console.print("")
                 
-            first_regis_token = False
-            _thought_header_shown = False
-            _thought_mode = False
-            _thought_stream_buf = ""   # rolling buffer do detekcji tagów w locie
-            _scratchpad_buf = ""       # reszta (jsony, śmieci) — do cichego porzucenia
-            tools_called_in_this_pass = False
+            _first_thought = True
+            _first_content = True
+            
+            def on_thought_token(chunk):
+                nonlocal _first_thought, _first_content
+                if _first_thought:
+                    if not _first_content:
+                        print()
+                        print()
+                        _first_content = True
+                    ts_now = datetime.datetime.now().strftime("%H:%M:%S")
+                    console.print(f"[{ts_now}] ", style="dim green", end="", highlight=False)
+                    console.print("Myśli agenta: ", style="dim", end="", highlight=False)
+                    _first_thought = False
+                console.print(chunk, style="dim", end="", highlight=False, markup=False)
 
-            _OPEN_TAG = "<thought>"
-            _CLOSE_TAG = "</thought>"
-            _JUNK_TAGS = ("<tool_call>", "</tool_call>")
+            def on_content_token(chunk):
+                nonlocal _first_content, _first_thought
+                if _first_content:
+                    if not chunk.strip():
+                        return
+                    if not _first_thought:
+                        print()
+                        print()
+                        _first_thought = True 
+                    ts_now = datetime.datetime.now().strftime("%H:%M:%S")
+                    console.print(f"[{ts_now}] ", style="dim green", end="", highlight=False)
+                    console.print("Regis: ", style="bold white", end="", highlight=False)
+                    _first_content = False
+                print(chunk, end="", flush=True)
 
-            def flush_scratchpad():
-                """Myśli zostały już wyświetlone w real-time przez stream_update.
-                Ta funkcja tylko czyści bufory przed wyświetleniem statusu narzędzia."""
-                nonlocal _scratchpad_buf, _thought_stream_buf, _thought_mode
-                if _thought_mode and _thought_stream_buf.strip():
-                    # Jeśli model urwał myśl w połowie przed wywołaniem narzędzia — doflushuj
-                    console.print(f"[dim]{_thought_stream_buf.strip()}[/dim]", highlight=False)
-                    console.print("")
-                _scratchpad_buf = ""
-                _thought_stream_buf = ""
-                _thought_mode = False
-
-            def status_update(msg_text):
-                nonlocal tools_called_in_this_pass, first_regis_token
-                if first_regis_token:
+            def on_tool_call(msg_text):
+                nonlocal _first_thought, _first_content
+                if not _first_thought or not _first_content:
                     print()
-                    first_regis_token = False
-                if not tools_called_in_this_pass:
-                    tools_called_in_this_pass = True
-                    flush_scratchpad()
+                    if not _first_thought:
+                        print()
+                    _first_thought = True
+                    _first_content = True
                 ts_now = datetime.datetime.now().strftime("%H:%M:%S")
-                console.print(f"[dim green][{ts_now}][/dim green] [dim]{msg_text}[/dim]", highlight=False)
-
-            def stream_update(token: str, is_scratchpad: bool = False):
-                """Maszyna stanów do real-time wykrywania i wyświetlania tagów <thought>.
-                
-                Stany:
-                  _thought_mode=False: czekamy na <thought> lub przepuszczamy do bufora śmieci
-                  _thought_mode=True:  jesteśmy wewnątrz <thought>...</thought>, 
-                                       streamujemy na bieżąco jako 'Myśli agenta'
-                """
-                nonlocal first_regis_token, _thought_header_shown, _thought_mode
-                nonlocal _thought_stream_buf, _scratchpad_buf
-
-                if not token:
-                    return
-
-                if not is_scratchpad:
-                    # Drugi przebieg (po narzędziach) — finalna odpowiedź. Streamuj jako Regis:.
-                    if not first_regis_token:
-                        ts_now = datetime.datetime.now().strftime("%H:%M:%S")
-                        console.print(f"[dim green][{ts_now}][/dim green] [bold white]Regis:[/bold white] ", end="", highlight=False)
-                        first_regis_token = True
-                    print(token, end="", flush=True)
-                    return
-
-                # Tryb scratchpad — przetwarzaj token przez maszynę stanów z rolling buforem
-                _thought_stream_buf += token
-
-                # Filtruj śmieciowe tagi Qwen Instruct na bieżąco
-                for junk in _JUNK_TAGS:
-                    _thought_stream_buf = _thought_stream_buf.replace(junk, "")
-
-                while True:
-                    if not _thought_mode:
-                        # Szukamy otwierającego tagu <thought>
-                        if _OPEN_TAG in _thought_stream_buf:
-                            idx = _thought_stream_buf.index(_OPEN_TAG)
-                            _scratchpad_buf += _thought_stream_buf[:idx]  # śmieci przed tagiem
-                            _thought_stream_buf = _thought_stream_buf[idx + len(_OPEN_TAG):]
-                            _thought_mode = True
-                            if not _thought_header_shown:
-                                ts_now = datetime.datetime.now().strftime("%H:%M:%S")
-                                console.print(f"[dim green][{ts_now}][/dim green] [dim]Myśli agenta:[/dim] ", end="", highlight=False)
-                                _thought_header_shown = True
-                            # Kontynuuj pętlę — być może jest też treść myśli w buforze
-                        else:
-                            # Tag może być podzielony między tokeny — trzymaj koniec bufora
-                            safe_len = max(0, len(_thought_stream_buf) - len(_OPEN_TAG) + 1)
-                            _scratchpad_buf += _thought_stream_buf[:safe_len]
-                            _thought_stream_buf = _thought_stream_buf[safe_len:]
-                            break
-                    else:
-                        # Jesteśmy w środku <thought> — szukamy zamykającego tagu
-                        if _CLOSE_TAG in _thought_stream_buf:
-                            idx = _thought_stream_buf.index(_CLOSE_TAG)
-                            thought_content = _thought_stream_buf[:idx]
-                            if thought_content:
-                                console.print(f"[dim]{thought_content}[/dim]", end="", highlight=False)
-                            _thought_stream_buf = _thought_stream_buf[idx + len(_CLOSE_TAG):]
-                            _thought_mode = False
-                            console.print("")   # nowa linia po myśli
-                            console.print("")
-                            # Kontynuuj pętlę — mogą być kolejne tagi w tym samym tokenie
-                        else:
-                            # Tag zamykający może być podzielony — trzymaj koniec bufora w rezerwie
-                            safe_len = max(0, len(_thought_stream_buf) - len(_CLOSE_TAG) + 1)
-                            thought_content = _thought_stream_buf[:safe_len]
-                            if thought_content:
-                                console.print(f"[dim]{thought_content}[/dim]", end="", highlight=False)
-                            _thought_stream_buf = _thought_stream_buf[safe_len:]
-                            break
-
-            def final_response_callback(final_text):
-                """Wywoływana przez silnik po zakończeniu pętli ReAct z finalną odpowiedzią.
-                
-                Jeśli narzędzia nie były użyte: wyświetla odpowiedź jako 'Regis:' 
-                (usuwając wcześniej wyświetlone tagi thought ze strumienia).
-                """
-                import re
-                nonlocal tools_called_in_this_pass, _scratchpad_buf, first_regis_token, _thought_header_shown
-                if not tools_called_in_this_pass:
-                    # Tagi <thought> zostały już wyświetlone przez stream_update w real-time.
-                    # Usuwamy je z finalnego tekstu, by nie dublować i nie wyświetlać śmieciowych JSON-ów.
-                    clean_text = re.sub(r'<thought>.*?</thought>', '', final_text, flags=re.DOTALL)
-                    for junk in _JUNK_TAGS:
-                        clean_text = clean_text.replace(junk, "")
-                    clean_text = clean_text.strip()
-                    if clean_text:
-                        if _thought_header_shown:
-                            console.print("")
-                        ts_now = datetime.datetime.now().strftime("%H:%M:%S")
-                        console.print(f"[dim green][{ts_now}][/dim green] [bold white]Regis:[/bold white] ", end="", highlight=False)
-                        console.print(f"{clean_text}", highlight=False)
-                        print()
-                else:
-                    if first_regis_token:
-                        print()
-                        first_regis_token = False
-                _scratchpad_buf = ""
+                console.print(f"[{ts_now}] ", style="dim green", end="", highlight=False)
+                console.print(msg_text, style="dim", highlight=False, markup=False)
 
             try:
                 response_text = llm_engine.generate_response(
                     user_input, 
                     tools_registry, 
-                    status_update, 
-                    stream_update, 
-                    final_response_callback
+                    on_tool_call=on_tool_call, 
+                    on_thought_token=on_thought_token, 
+                    on_content_token=on_content_token
                 )
             except (HomeAssistantConnectionError, LLMConnectionError) as e:
                 console.print(f"\n[red]Błąd systemu (Połączenie): {e}[/red]", highlight=False)
@@ -303,7 +214,7 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                 logging.exception("Błąd w trakcie analizy otoczenia/LLM.")
                 continue
             
-            if first_regis_token:
+            if not _first_content or not _first_thought:
                 print()
                 console.print("")
                 
