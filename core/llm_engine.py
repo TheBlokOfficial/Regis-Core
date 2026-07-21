@@ -183,6 +183,9 @@ class LLMEngine:
         Returns:
             str: Tekstowa odpowiedź od modelu.
         """
+        if hasattr(tools_registry, 'tick_desk'):
+            tools_registry.tick_desk()
+            
         prompt_to_use = self._build_system_prompt()
         messages = [{"role": "system", "content": prompt_to_use}]
 
@@ -208,21 +211,14 @@ class LLMEngine:
             iteration_count += 1
             parser.reset_state()
             
-            # Wzorzec Blackboard: Wstrzykiwanie aktualnego stanu z dysku w każdej iteracji
-            import os
-            queue_state_content = "Brak zaległych notatek w kolejce."
-            if os.path.exists("data/pending_notes.json"):
-                try:
-                    with open("data/pending_notes.json", "r", encoding="utf-8") as f:
-                        pending = json.load(f)
-                        if pending:
-                            queue_state_content = json.dumps(pending, ensure_ascii=False, indent=2)
-                except Exception:
-                    queue_state_content = "Błąd odczytu kolejki z dysku."
+            # Wzorzec Open/Close: Wstrzykiwanie aktualnego stanu otwartych aplikacji na biurku
+            desk_state_content = tools_registry.get_desk_state() if hasattr(tools_registry, 'get_desk_state') else ""
+            if not desk_state_content:
+                desk_state_content = "Biurko jest puste."
                     
             state_injection = {
                 "role": "system",
-                "content": f"<queue_state>\n{queue_state_content}\n</queue_state>"
+                "content": f"<desk_state>\n{desk_state_content}\n</desk_state>"
             }
             
             # Bezpieczna kopia wiadomości, do której na sam dół dodajemy świeży stan

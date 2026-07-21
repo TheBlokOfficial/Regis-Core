@@ -36,8 +36,10 @@ class ToolsRegistry:
             if "required_tier" in tool_copy:
                 del tool_copy["required_tier"]
             filtered_schema.append(tool_copy)
-            
         self.tools_schema = filtered_schema
+        
+        # Inicjalizacja biurka dla modelu (Desk Manager)
+        self.desk_apps = {}
         
     def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """Kieruje wywołanie narzędzia do odpowiedniej logiki."""
@@ -64,8 +66,10 @@ class ToolsRegistry:
                 return self._save_note(arguments.get("key", ""), arguments.get("content", ""))
             elif tool_name == "queue_note":
                 return self._queue_note(arguments.get("fact", ""))
-            elif tool_name == "read_queue":
-                return self._read_queue()
+            elif tool_name == "open_notes":
+                return self._open_notes()
+            elif tool_name == "close_notes":
+                return self._close_notes()
             elif tool_name == "clear_queue":
                 return self._clear_queue(arguments.get("ids", []))
             elif tool_name == "read_notes":
@@ -225,23 +229,55 @@ class ToolsRegistry:
             logging.error(f"Błąd zapisu do kolejki notatek: {e}")
             return json.dumps({"error": "Nie udało się zapisać faktu do kolejki."}, ensure_ascii=False)
 
-    def _read_queue(self) -> str:
+    def tick_desk(self):
+        """Zmniejsza TTL wszystkich otwartych aplikacji na biurku i zamyka przeterminowane."""
+        expired = []
+        for app, data in self.desk_apps.items():
+            data["ttl"] -= 1
+            if data["ttl"] <= 0:
+                expired.append(app)
+        for app in expired:
+            logging.info(f"Aplikacja '{app}' została zamknięta automatycznie (TTL timeout).")
+            del self.desk_apps[app]
+
+    def get_desk_state(self) -> str:
+        """Pobiera aktualny stan biurka z otwartymi aplikacjami."""
+        if not self.desk_apps:
+            return ""
+            
         import os, json
-        path = os.path.join("data", "pending_notes.json")
-        if not os.path.exists(path):
-            return json.dumps({"result": "empty", "message": "Kolejka brudnopisu jest pusta."}, ensure_ascii=False)
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                pending = json.load(f)
-            if not pending:
-                return json.dumps({"result": "empty", "message": "Kolejka brudnopisu jest pusta."}, ensure_ascii=False)
-            return json.dumps({"pending_notes": pending}, ensure_ascii=False)
-        except Exception as e:
-            logging.error(f"Błąd odczytu kolejki: {e}")
-            return json.dumps({"error": "Błąd odczytu pliku pending_notes.json."}, ensure_ascii=False)
+        state_parts = []
+        for app, data in self.desk_apps.items():
+            if app == "notatki":
+                path = os.path.join("data", "pending_notes.json")
+                content = "Kolejka jest pusta."
+                if os.path.exists(path):
+                    try:
+                        with open(path, "r", encoding="utf-8") as f:
+                            pending = json.load(f)
+                            if pending:
+                                content = json.dumps(pending, ensure_ascii=False, indent=2)
+                    except Exception:
+                        content = "Błąd odczytu."
+                state_parts.append(f"[Biurko: Otwarte Notatki (wygasną za {data['ttl']} tur bezczynności)]\nZawartość:\n{content}")
+        
+        return "\n\n".join(state_parts)
+
+    def _open_notes(self) -> str:
+        self.desk_apps["notatki"] = {"ttl": 10}
+        return json.dumps({"result": "success", "message": "Otwarto aplikację Brudnopisu i położono na biurku. Zawartość zobaczysz w bloku <desk_state>."}, ensure_ascii=False)
+
+    def _close_notes(self) -> str:
+        if "notatki" in self.desk_apps:
+            del self.desk_apps["notatki"]
+        return json.dumps({"result": "success", "message": "Aplikacja Brudnopisu została poprawnie zamknięta i usunięta z biurka."}, ensure_ascii=False)
 
     def _clear_queue(self, ids: list[str]) -> str:
         import os, json
+        # Reset TTL aplikacji notatnik, jeśli otwarta
+        if "notatki" in self.desk_apps:
+            self.desk_apps["notatki"]["ttl"] = 10
+            
         if not ids or not isinstance(ids, list):
             return json.dumps({"error": "Musisz podać listę 'ids' do usunięcia."}, ensure_ascii=False)
             
@@ -266,6 +302,11 @@ class ToolsRegistry:
             return json.dumps({"error": "Wystąpił błąd podczas usuwania pozycji z kolejki."}, ensure_ascii=False)
 
     def _save_note(self, key: str, content: str) -> str:
+        import os, json
+        # Reset TTL aplikacji notatnik, jeśli otwarta
+        if "notatki" in self.desk_apps:
+            self.desk_apps["notatki"]["ttl"] = 10
+            
         if not key or not content:
             return json.dumps({"error": "Brakuje klucza lub treści notatki."}, ensure_ascii=False)
         memory = self._load_memory()

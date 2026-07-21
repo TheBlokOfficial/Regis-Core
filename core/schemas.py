@@ -139,8 +139,21 @@ BASE_TOOLS_SCHEMA = [
         "type": "function",
         "required_tier": "regis",
         "function": {
-            "name": "read_queue",
-            "description": "Odczytuje zawartość kolejki brudnopisu (Staging).",
+            "name": "open_notes",
+            "description": "Otwiera aplikację Brudnopisu (Staging) z zanotowanymi wcześniej szkicami i kładzie ją na Twoim biurku. Będziesz widział zawartość aplikacji dopóki jej nie zamkniesz.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "required_tier": "regis",
+        "function": {
+            "name": "close_notes",
+            "description": "Zamyka aplikację Brudnopisu, uwalniając Twoją pamięć operacyjną ze zbędnych danych. Używaj po skończonej pracy z notatkami.",
             "parameters": {
                 "type": "object",
                 "properties": {},
