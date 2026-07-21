@@ -19,6 +19,7 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Refaktoryzacja pętli konwersacyjnej ReAct na architekturę Event-Driven ze StreamingTokenParserem.
 - [x] Zaawansowany Prompt Engineering: Wdrożenie checklist, pętli self-correction i 3-warstwowej ochrony przed halucynacjami Parallel Tool Calling (w tym Prompt Anchoring) dla Qwen 2.5.
 - [x] Stabilizacja logiki konsolidacji pamięci: Rozwiązanie State-History Conflict poprzez wzorzec Atomic Actions (`clear_queue_ids` w `save_note`) oraz całkowite zlikwidowanie halucynacji Qwen 2.5 poprzez Positive Framing i usunięcie konfliktów z promptów.
+- [x] Refaktoryzacja architektury (Droga A): Usunięcie natywnego function-callingu Ollamy w celu likwidacji angielskiego driftu, usunięcie systemu biurka na rzecz bezpośrednich rezultatów narzędzi, oraz kondensacja historii do pełnych tur (user+assistant) w celu wyleczenia amnezji LLM.
 - [ ] Stworzenie usługi telemetrycznej "Handoff" do przerzucania zadań z Maliny na PC (Boss Mode).
 - [ ] Integracja systemu WakeWord (oczekiwanie na dyskusję nt. wyboru narzędzia).
 - [ ] Integracja systemu Speech-To-Text.

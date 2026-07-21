@@ -1,3 +1,5 @@
+import json
+
 BASE_TOOLS_SCHEMA = [
     {
         "type": "function",
@@ -43,21 +45,21 @@ BASE_TOOLS_SCHEMA = [
         "required_tier": "butler",
         "function": {
             "name": "execute_ha_action",
-            "description": "Wykonuje fizyczną akcję na urządzeniach. NIGDY nie zgaduj entity_id! Zawsze najpierw wywołaj narzędzie `get_devices`, przeczytaj wyniki i dopiero z nich skopiuj właściwe identyfikatory. Jeśli używasz parametrów (np. zmiana jasności oświetlenia), akcja zawsze musi być ustawiona na 'turn_on'.",
+            "description": "Wykonuje fizyczną akcję na urządzeniach. Nigdy nie zgaduj entity_id — zawsze najpierw wywołaj get_devices. Jeśli ustawiasz parametry (np. jasność), akcja musi być 'turn_on'.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
                         "enum": ["turn_on", "turn_off", "toggle"],
-                        "description": "Typ akcji. DOZWOLONE SĄ WYŁĄCZNIE WARTOSCI: 'turn_on', 'turn_off', 'toggle'. NIE UŻYWAJ INNYCH."
+                        "description": "Typ akcji: 'turn_on', 'turn_off' lub 'toggle'."
                     },
                     "entity_id": {
                         "type": ["string", "array"],
                         "items": {
                             "type": "string"
                         },
-                        "description": "Dokładne ID encji (np. 'light.salon') lub lista ID (np. ['light.1', 'light.2'])."
+                        "description": "Dokładne ID encji (np. 'light.salon') lub lista ID."
                     },
                     "parameters": {
                         "type": "object",
@@ -86,7 +88,7 @@ BASE_TOOLS_SCHEMA = [
         "required_tier": "butler",
         "function": {
             "name": "get_weather",
-            "description": "Zwraca aktualne informacje o pogodzie w podanym mieście. Jeśli użytkownik nie podał miasta — najpierw sprawdź Notatnik (read_notes), a jeśli pusty — zapytaj go o to wprost. Nie zgaduj miasta.",
+            "description": "Zwraca aktualne informacje o pogodzie w podanym mieście.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -103,14 +105,14 @@ BASE_TOOLS_SCHEMA = [
         "type": "function",
         "required_tier": "butler",
         "function": {
-            "name": "open_notebook_search",
-            "description": "Przeszukuje Notatnik użytkownika (Pamięć Długoterminowa) w poszukiwaniu konkretnych informacji i kładzie wyniki na Twoim biurku. ZAWSZE preferuj wywołanie tego narzędzia bez argumentu 'query', aby otrzymać pełen spis dostępnych kluczy. TWARDA DYREKTYWA: Po użyciu tego narzędzia NIE wywołuj go ponownie ani nie używaj innych narzędzi do odczytu. Przejdź od razu do analizy bloku <desk_state>, który zaktualizował się na końcu Twojego kontekstu.",
+            "name": "search_memory",
+            "description": "Przeszukuje Pamięć Długoterminową (Notatnik) użytkownika. Bez argumentu 'query' zwraca listę wszystkich zapisanych kluczy. Z argumentem — wartość pod konkretnym kluczem.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Opcjonalny klucz notatki do odczytania. Jeśli nie masz 100% pewności jak nazywa się klucz, zignoruj ten argument i wywołaj bez niego, by zdobyć listę wszystkich kluczy."
+                        "description": "Opcjonalny klucz notatki do odczytania. Bez argumentu zwraca listę wszystkich kluczy."
                     }
                 },
                 "required": []
@@ -122,13 +124,13 @@ BASE_TOOLS_SCHEMA = [
         "required_tier": "butler",
         "function": {
             "name": "queue_note",
-            "description": "Zapisuje nową notatkę do kolejki buforowej (Staging). Używaj tego, aby zapamiętywać fakty o użytkowniku po usłyszeniu ich w rozmowie. Notatka zostanie później zweryfikowana przez system.",
+            "description": "Zapisuje nową notatkę do kolejki buforowej (Staging). Używaj do zapamiętywania faktów o użytkowniku usłyszanych w rozmowie. Notatka zostanie później zweryfikowana.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "fact": {
                         "type": "string",
-                        "description": "Treść faktu do zapamiętania. KATEGORYCZNY NAKAZ: Nie wklejaj suchych wycinków tekstu. Zawsze redaguj fakt jako pełne, obiektywne zdanie w 3. osobie z bogatym kontekstem. Zamiast 'Nysa' napisz 'Użytkownik poinformował, że obecnie mieszka w Nysie'."
+                        "description": "Treść faktu. Zawsze redaguj jako pełne zdanie w 3. osobie z kontekstem, np. 'Użytkownik mieszka w Nysie'."
                     }
                 },
                 "required": ["fact"]
@@ -139,8 +141,8 @@ BASE_TOOLS_SCHEMA = [
         "type": "function",
         "required_tier": "regis",
         "function": {
-            "name": "open_notes",
-            "description": "Otwiera aplikację Brudnopisu (Staging) z zanotowanymi wcześniej szkicami i kładzie ją na Twoim biurku. ZAWSZE po użyciu tego narzędzia odczytaj nowo wstrzyknięty blok <desk_state>. Następnie wykonaj pracę archiwisty: wywołuj 'save_note' (pamiętając o parametrze clear_queue_ids) dla każdego ważnego faktu widocznego na biurku.",
+            "name": "get_pending_notes",
+            "description": "Pobiera pełną listę nieprzetworzonych notatek z kolejki buforowej (Staging/Brudnopis). Zwraca bezpośrednio zawartość z identyfikatorami i treścią każdej notatki.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -152,33 +154,25 @@ BASE_TOOLS_SCHEMA = [
         "type": "function",
         "required_tier": "regis",
         "function": {
-            "name": "close_notes",
-            "description": "Zamyka aplikację Brudnopisu, uwalniając Twoją pamięć operacyjną ze zbędnych danych. Używaj po skończonej pracy z notatkami.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "required_tier": "regis",
-        "function": {
-            "name": "clear_queue",
-            "description": "Usuwa przetworzone i zarchiwizowane notatki z kolejki brudnopisu na podstawie podanych ID. Używaj tego narzędzia tylko PO otrzymaniu wyniku potwierdzającego sukces z narzędzia save_note.",
+            "name": "archive_note",
+            "description": "Akcja atomowa: zapisuje fakt do Pamięci Długoterminowej i jednocześnie usuwa powiązaną notatkę z kolejki buforowej. Używaj do konsolidacji brudnopisu.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "ids": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Lista identyfikatorów (ID) notatek do usunięcia z kolejki."
+                    "note_id": {
+                        "type": "string",
+                        "description": "ID notatki z kolejki buforowej do usunięcia po archiwizacji."
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Klucz w Pamięci Długoterminowej (bez spacji, z podkreślnikami)."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Zredagowana treść faktu do zapamiętania. Pełne zdanie z kontekstem."
                     }
                 },
-                "required": ["ids"]
+                "required": ["note_id", "key", "content"]
             }
         }
     },
@@ -186,25 +180,18 @@ BASE_TOOLS_SCHEMA = [
         "type": "function",
         "required_tier": "regis",
         "function": {
-            "name": "save_note",
-            "description": "Zapisuje nową notatkę lub nadpisuje istniejącą w Pamięci Długoterminowej. Używaj tego do zapamiętywania preferencji użytkownika.",
+            "name": "save_memory",
+            "description": "Zapisuje lub nadpisuje notatkę w Pamięci Długoterminowej. Używaj do zapamiętywania preferencji użytkownika niezwiązanych z brudnopisem.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "key": {
                         "type": "string",
-                        "description": "Klucz notatki. Bez spacji, z użyciem podkreślników."
+                        "description": "Klucz notatki (bez spacji, z podkreślnikami)."
                     },
                     "content": {
                         "type": "string",
-                        "description": "Treść notatki do zapamiętania. Twórz wyczerpujące wpisy, preferuj zapisywanie całych zdań z kontekstem (np. 'Użytkownik aktualnie mieszka w Nysie, ale rzadko bywa w centrum'), a nie pojedynczych słów."
-                    },
-                    "clear_queue_ids": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Opcjonalnie: Lista ID TYLKO TYCH notatek z brudnopisu, które właśnie przeniosłeś w tym konkretnym wywołaniu save_note. Nigdy nie podawaj tu ID notatek, których jeszcze nie zapisałeś!"
+                        "description": "Treść notatki. Pełne zdanie z kontekstem."
                     }
                 },
                 "required": ["key", "content"]
@@ -215,8 +202,8 @@ BASE_TOOLS_SCHEMA = [
         "type": "function",
         "required_tier": "regis",
         "function": {
-            "name": "delete_note",
-            "description": "Usuwa notatkę z Pamięci Długoterminowej.",
+            "name": "delete_memory",
+            "description": "Usuwa notatkę z Pamięci Długoterminowej na podstawie klucza.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -230,3 +217,43 @@ BASE_TOOLS_SCHEMA = [
         }
     }
 ]
+
+
+def get_tools_for_tier(tier: str) -> list[dict]:
+    """Filtruje schematy narzędzi na podstawie poziomu uprawnień (tier).
+    Zwraca kopię bez niestandardowego pola 'required_tier'."""
+    tier_clearance = {"butler": 1, "regis": 2, "prime": 3}
+    current_clearance = tier_clearance.get(tier, 1)
+    
+    filtered = []
+    for tool in BASE_TOOLS_SCHEMA:
+        req_tier = tool.get("required_tier", "butler")
+        if tier_clearance.get(req_tier, 1) <= current_clearance:
+            tool_copy = tool.copy()
+            tool_copy.pop("required_tier", None)
+            filtered.append(tool_copy)
+    return filtered
+
+
+def render_tools_for_prompt(tier: str) -> str:
+    """Renderuje schematy narzędzi do formatu tekstowego kompatybilnego z Hermes/Qwen.
+    
+    Zamiast wysyłać pole 'tools' do API Ollamy (co powoduje kolizję z natywnym
+    blokiem instrukcji), wstrzykujemy opisy narzędzi bezpośrednio do system promptu
+    w formacie natywnym dla treningu Qwen 2.5 (tagi <tools>).
+    """
+    tools = get_tools_for_tier(tier)
+    tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
+    
+    return f"""## Dostępne Narzędzia
+
+Masz do dyspozycji narzędzia opisane poniżej w bloku `<tools>`. Aby użyć narzędzia, wygeneruj wywołanie w tagach:
+<tool_call>
+{{"name": "nazwa_narzędzia", "arguments": {{"parametr": "wartość"}}}}
+</tool_call>
+
+W jednej iteracji używaj dokładnie jednego narzędzia. Po wywołaniu otrzymasz wynik i możesz kontynuować.
+
+<tools>
+{tools_json}
+</tools>"""

@@ -2,7 +2,14 @@
 
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
-## Ostatnia Aktywność (Sesja 2026-07-21)
+## Ostatnia Aktywność (Sesja 2026-07-21 - Część 2)
+
+* **[REFAKTORYZACJA ARCHITEKTURY - DROGA A]** Całkowicie przebudowano system dostarczania narzędzi do modelu Qwen 2.5. Usunięto pole `tools` z payloadu Ollamy, aby zapobiec wstrzykiwaniu przez nią domyślnego (angielskiego) bloku instrukcji, który powodował u modelu "angielski drift". Narzędzia są teraz renderowane bezpośrednio jako tekst (XML-like `<tools>`) do promptu systemowego, dając 100% kontroli nad językiem i zachowaniem.
+* **[LIKWIDACJA SYSTEMU BIURKA (desk_state)]** Zrezygnowano ze skomplikowanego, stanowego systemu wstrzykiwania `<desk_state>`. Model nie musi już "otwierać" notatek i czekać iterację na ich pojawienie się w prompcie. `get_pending_notes()` zwraca pełne dane bezpośrednio. Zamiast ręcznej edycji, wprowadzono **Atomic Action** w postaci narzędzia `archive_note()`, które jednocześnie zapisuje do Pamięci Długoterminowej i usuwa wpis z brudnopisu.
+* **[NAPRAWA AMNEZJI (Zarządzanie Historią)]** System ReAct od teraz kondensuje przeszłą historię. Zapamiętywane są tylko pełne tury (Para `user` + ostateczny `assistant`). Pełny ślad rozumowania (Myśli + Wywołania) istnieje tylko w izolowanym środowisku bieżącej iteracji. Limit historii ustawiono na 20 pełnych tur, co naprawia "krótkowzroczność" w skomplikowanych sesjach konsolidacji pamięci.
+* **[OPTYMALIZACJA PARAMETRÓW I PROMPTÓW]** `temperature` ustawiona na `0.1`, a `num_ctx` podbite do `8192`, by zapobiec cichemu obcinaniu promptu przez Ollamę. Znacznie uproszczono i odchudzono prompty systemowe dla wszystkich tierów, wprowadzając zaktualizowane Few-Shots dla Qwen 2.5.
+
+## Poprzednia Aktywność (Sesja 2026-07-21 - Część 1)
 
 * **[ZAAWANSOWANY PROMPT ENGINEERING v2]** Wdrożono dokument `docs/PROMPT_ENGINEERING.md` i przepisano całkowicie strukturę promptów (`tier_butler.md`, `tier_regis.md`, `base_system.md`). Model otrzymuje tożsamość na początku, ma liniowe checklisty Krok-Po-Kroku z ujętą Pętlą Naprawczą, a na końcu stosowany jest "Sandwiching" przypominający mu o twardych restrykcjach przed samą generacją.
 * **[LOGIKA ŁĄCZENIA W SILNIKU]** W `core/llm_engine.py` odwrócono kolejność: najpierw ładuje się `tier_prompt`, potem `base_system`. Do tego na sam dół dopinany jest twardy przypominacz `KRYTYCZNE ZASADY BEHAWIORALNE`, który skutecznie zabija u modelu chęć wylewnego monologowania poza tagiem `<thought>`.

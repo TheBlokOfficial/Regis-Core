@@ -42,20 +42,35 @@ def main():
         if mode_choice == "prod":
             active_tier = settings.get("active_tier", "butler")
             
-            if active_tier == "butler":
-                model_name = "qwen2.5:7b-instruct"
-                temperature = 0.1
-                display_name = "Lokaj"
-            else:
-                model_name = "qwen2.5:14b-instruct"
-                temperature = 0.4
-                display_name = "Regis"
+            # Konfiguracja per tier
+            tier_config = {
+                "butler": {
+                    "model": "qwen2.5:7b-instruct",
+                    "temperature": 0.1,
+                    "display_name": "Lokaj"
+                },
+                "regis": {
+                    "model": "qwen2.5:14b-instruct",
+                    "temperature": 0.1,
+                    "display_name": "Regis"
+                },
+                "prime": {
+                    "model": "qwen2.5:32b-instruct",
+                    "temperature": 0.1,
+                    "display_name": "Regis Prime"
+                }
+            }
+            
+            tier_cfg = tier_config.get(active_tier, tier_config["butler"])
+            model_name = settings.get("selected_model", tier_cfg["model"])
+            temperature = tier_cfg["temperature"]
+            display_name = tier_cfg["display_name"]
                 
             llm_engine = LLMEngine(
                 model_name=model_name,
                 tier=active_tier,
                 temperature=temperature,
-                history_limit=settings.get("history_limit", 10)
+                history_limit=settings.get("history_limit", 20)
             )
             
             cli.run_production_loop(llm_engine, ha_client, display_name)

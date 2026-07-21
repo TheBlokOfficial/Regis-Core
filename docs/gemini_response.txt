@@ -1,0 +1,122 @@
+Oto surowa, krytyczna analiza architektoniczna Twojego systemu. Krótka odpowiedź brzmi: Twój scaffold walczy z modelem, zamiast z nim współpracować. Używasz potężnego modelu (Qwen 2.5 32B), ale narzucasz mu archaiczne, wymyślone na nowo wzorce z czasów wczesnego GPT-3.5 (customowe parsowanie tagów, globalny stan wstrzykiwany w prompt).
+
+Poniżej znajdziesz szczegółowe odpowiedzi na Twoje pytania oraz diagnozę problemów.
+
+Pytanie 1 — Architektura scaffoldu (Pętla ReAct i customowe tagi)
+Ocena: Przestarzała i nieoptymalna.
+Obecna architektura to krok wstecz w stosunku do tego, co natywnie potrafią modele z rodziny Qwen 2.5 Instruct.
+
+Modele Qwen 2.5 zostały silnie wyuczone (fine-tuned) do obsługi wywołań narzędzi (Tool Calling) przy użyciu natywnych struktur (często opartych na ChatML i konkretnych tokenach systemowych). W kodzie widać, że przekazujesz tools: tools_registry.tools_schema do API Ollamy, ale jednocześnie każesz modelowi generować własne, tekstowe tagi <thought> i <tool_call>, a potem parsować je strumieniowo w kodzie.
+
+Dlaczego to błąd?
+
+Midasowy problem: Ollama widząc przekazane tools, próbuje aktywować swój natywny mechanizm (zwracając obiekty tool_calls), a Ty w prompcie zmuszasz model do rzeźbienia tekstowego <tool_call>{"name"...}</tool_call>. Model dostaje schizofrenii — jego wagi fine-tuningu do narzędzi gryzą się z Twoim system promptem.
+
+Zatrzymanie generowania (stop: ["</tool_call>"]): Jeśli ucinasz generację na tagu zamykającym, model może nie dokończyć poprawnie struktury JSON wewnątrz, a Twój parser musi to kleić.
+
+Rozwiązanie: Należy całkowicie porzucić customowe tagi <tool_call> i przejść na natywny Tool Calling Ollamy. Model powinien po prostu zwrócić ustandaryzowany obiekt z wywołaniem funkcji, a API samo to obsłuży. Zostawienie samego tagu <thought> (dla Chain-of-Thought) przed wywołaniem narzędzia jest dobrym pomysłem, ale niech model po prostu wywołuje narzędzie natywnie.
+
+Pytanie 2 — System biurka (desk_state)
+Ocena: Fundamentalnie błędny wzorzec dla bezstanowych LLM (Antywzorzec).
+System "otwierania aplikacji" i patrzenia na "biurko" działa w świecie GUI dla ludzi, ale jest koszmarem w architekturze LLM.
+
+Trafnie zdiagnozowałeś problem "widzenia przyszłości".
+Zastanów się, jak wygląda prompt w pierwszej iteracji:
+
+Markdown
+[System prompt...]
+<desk_state>
+Biurko jest puste.
+</desk_state>
+[User: "Czy mamy jakieś zaległości?"]
+Model widzi jasny komunikat systemowy: biurko jest puste. Dlaczego miałby otwierać brudnopis, skoro obiektywne źródło prawdy (prompt) mówi mu, że nic tam nie ma?
+
+Co więcej, "rozłączasz" wywołanie narzędzia od jego wyniku. Narzędzie open_notes zwraca tylko podgląd (preview), a faktyczne dane pojawiają się "magicznie" w kolejnej iteracji pętli w innym miejscu promptu (<desk_state>). Dla LLM naturalnym wzorcem jest:
+
+Pytanie (role: user)
+
+Wywołanie narzędzia (role: assistant, tool_calls: [...])
+
+Wynik narzędzia (role: tool, content: [PEŁNE DANE])
+
+Rozwiązanie: Narzędzia muszą zwracać docelowe dane bezpośrednio jako swój wynik. Wywal desk_state. Jeśli model potrzebuje notatek, niech wywoła get_pending_notes(), które po prostu wylistuje mu treść notatek w obiekcie tool_result. Bez otwierania, bez zamykania.
+
+Pytanie 3 — Zarządzanie historią
+Ocena: Katastrofa pamięciowa.
+Ustawienie history_limit=10 przy zapisywaniu każdego elementu pętli ReAct osobno oznacza, że model ma amnezję.
+
+Załóżmy jedną iterację:
+
+User prompt (1)
+
+Thought (2)
+
+Tool Call open_notes (3)
+
+Tool Result (4)
+
+Thought (5)
+
+Tool Call save_note (6)
+
+Tool Result (7)
+
+Thought (8)
+
+Tool Call save_note (9)
+
+Tool Result (10)
+
+W tym momencie history_limit=10 odcina wszystko przed punktem 2. Model zapomina, o co w ogóle pytał użytkownik. Przestaje rozumieć cel swojego działania i zaczyna halucynować, przechodzić na angielski lub urywać akcję (to dokładnie Twój Bug B).
+
+Rozwiązanie:
+
+Limituj historię po turach konwersacji (jedna tura = zapytanie usera + ostateczna odpowiedź asystenta), lub po ilości tokenów, a nie surowych wiadomościach.
+
+Kondensacja ReAct: Do trwałej historii (między pytaniami użytkownika) zapisuj tylko zapytanie użytkownika i ostateczną odpowiedź modelu. Pętlę myśli (<thought>) i brudne logi narzędzi z poprzednich tur wyrzucaj z kontekstu, chyba że są krytyczne dla ciągłości.
+
+Pytanie 4 — Prompty
+Ocena: Przeładowane, nakazowe, "krzyczące" (Over-prompting).
+Modele rzędu 14B/32B (szczególnie Qwen 2.5) są na tyle bystre, że łopatologiczne powtarzanie "ZAWSZE", "NAKAZ", "ZAKAZ" w system prompcie i tzw. sandwichu przynosi odwrotny skutek. Uwaga (attention) modelu skupia się na przestrzeganiu wielkich liter i formatowania, a nie na rozwiązaniu problemu logicznego.
+
+Sprzeczności: Piszesz "Użyj open_notes aby otworzyć... ZAWSZE zamknij aplikację" a zarazem żądasz zwięzłości. Zmuszasz go do bycia maszyną stanową, podczas gdy LLM jest procesorem języka.
+
+Few-Shot Examples: Twoje przykłady w base_system nie obejmują w ogóle logiki desk_state ani używania narzędzi notatnika! Model uczy się z przykładów, że ma odpowiedzieć "Słucham, w czym mogę pomóc?", ignorując instrukcje z sekcji wyżej.
+
+Instrukcje w opisie narzędzi: Wrzucasz logikę biznesową (np. „Następnie wykonaj pracę archiwisty...”) w pole description schematu narzędzia. To powinno być w System Prompcie, a narzędzie powinno mieć czysty opis: "Pobiera listę nieprzetworzonych notatek".
+
+Pytanie 5 — Diagnoza konkretnych bugów
+a) Stwierdził "biurko jest puste" i nie wywołał open_notes:
+Jak wspomniano w pkt 2. Wstrzykujesz <desk_state>Biurko jest puste</desk_state> przed pierwszą iteracją ReAct. Model czyta to i wnioskuje: "Aha, system dostarczył mi stan biurka. Jest puste. Nie ma zaległości". Logika LLM mówi mu, że nie ma sensu wywoływać narzędzia do pobierania notatek z biurka, które system właśnie zadeklarował jako puste.
+
+b) Po wywołaniu open_notes przeszedł na angielski i zadeklarował działanie:
+Nałożyły się tu dwa problemy:
+
+Amnezja przez history_limit: Prawdopodobnie zgubił pierwotny prompt użytkownika w trakcie iteracji.
+
+Zepsuta pętla sterowania (Prompt Drift): Zamiast wywołać <tool_call>, model "zaślizgnął" się w narrację. Został poproszony o "wykonanie pracy archiwisty", więc zachował się jak asystent tekstowy — opisał po angielsku (fallback językowy typowy dla wyczerpania przestrzeni ukrytej w mniejszych modelach/przy złym prompcie), co zaraz zrobi. Stało się tak, bo narzędzie zwróciło mu głupi status: sukces zamiast faktycznych danych, a model musiał czekać na wstrzyknięcie danych do desk_state. Skomplikowanie tej operacji zniszczyło jego "Reasoning".
+
+Pytanie 6 — Rekomendacja architektoniczna (Gdybym pisał to od nowa)
+Dla Qwen 2.5 32B Instruct via Ollama należy zaorać obecny engine i zastosować nowoczesny, płaski standard:
+
+Wyrzucić parsowanie stringów dla narzędzi: Użyj parametru tools w API Ollamy. Niech model generuje natywne pole tool_calls. Wyeliminuje to 90% problemów z formatowaniem.
+
+Zabić desk_state: Przejść na architekturę Request-Response dla narzędzi.
+
+Narzędzie get_staging_notes -> Zwraca listę obiektów JSON jako wynik narzędzia (role: tool).
+
+Narzędzie archive_note(note_id, memory_key, content) -> Zapisuje i od razu usuwa z kolejki staging. (Atomowość akcji!).
+
+Zastosować Chain-of-Thought (Myślenie wewnątrz content): Zostawienie tagu <thought> w content przed natywnym wywołaniem narzędzia jest świetne. Ustaw w prompcie: "Przed użyciem narzędzia lub odpowiedzią, napisz krótki plan w języku polskim w tagach <thought>...</thought>."
+
+Oczyścić prompty:
+
+Zbuduj jeden spójny system prompt (ok. 500-800 tokenów).
+
+Usuń sandwich (jest niepotrzebny dla 32B).
+
+Wyrzuć słowa "NAKAZ", "ZAKAZ". Napisz instrukcję jak dla inteligentnego stażysty: "Twoim zadaniem jest przegląd brudnopisu i konsolidacja go w pamięci. Użyj narzędzia X by pobrać notatki, a potem dla każdej użyj Y."
+
+Zarządzanie historią: Zapisuj w bazie tylko to, co asystent powiedział do usera, i to, co user do asystenta. Przy nowym prompcie ładuj 5 ostatnich tur, a nie 10 zdarzeń z pętli ReAct. Pętla ReAct ma żyć w pamięci tymczasowej (lokalna lista messages na czas rozstrzygania promptu) i po wygenerowaniu finalnej odpowiedzi być zwijana.
+
+Podsumowanie: Przekombinowałeś. Ogranicz system do standardowego API zgodnego z formatem OpenAI (który Ollama wspiera w tle), polegaj na natywnych mechanizmach narzędzi (Function Calling) i zredukuj inżynierię promptów do jasnych instrukcji bez sztucznych systemów pośrednich (biurko). Model 32B poradzi sobie z tym bezbłędnie.
