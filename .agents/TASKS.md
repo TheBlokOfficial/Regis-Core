@@ -4,6 +4,8 @@ Plik służy do śledzenia postępów w zaplanowanych zadaniach programistycznyc
 Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 
 ## Aktywne Zadania
+- [x] Naprawa regresji Tool Callingu: Przywrócenie Sandwichingu i Stop Tokens w `core/llm_engine.py` dla modeli Qwen 7B.
+- [ ] (Wstrzymane) Wdrożenie "Checklisty Zadań" w monologach modeli, by poprawić zdolności analityczne na wzór Scratchpadu.
 - [x] Opracowanie i wdrożenie zautomatyzowanej architektury komunikacji agentowej (Handoffs & State Protocols w `AGENTS.md`).
 - [x] Rozwój CLI: Usunięcie błędów renderowania, wprowadzenie pętli REPL (Infinite Scrolling) bez utraty danych.
 - [x] Kuloodporność modelu (Solid-State AI): Dedukcja narzędzi The Warden i ekstrakcja promptów psychologicznych.

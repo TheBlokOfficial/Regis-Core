@@ -81,7 +81,15 @@ class LLMEngine:
         # Renderowanie narzędzi do tekstu (format Hermes/Qwen)
         tools_text = render_tools_for_prompt(self.tier)
         
-        return f"{tier_prompt}\n\n{tools_text}\n\n{base_prompt}"
+        # Twardy przypominacz zwalczający utratę instrukcji w modelu 7B (Sandwiching)
+        critical_rules = (
+            "KRYTYCZNE ZASADY BEHAWIORALNE:\n"
+            "Zawsze otwieraj znacznik <thought> jako pierwszą rzecz w swojej odpowiedzi, aby zaplanować działanie. "
+            "Nigdy nie generuj od razu czystego tekstu odpowiedzi. Nigdy nie wymyślaj danych, których "
+            "nie pobrałeś odpowiednim narzędziem z bloku <tools>."
+        )
+        
+        return f"{tier_prompt}\n\n{tools_text}\n\n{base_prompt}\n\n{critical_rules}"
 
     def clear_history(self) -> None:
         """Czyszczenie historii konwersacji."""
@@ -205,6 +213,7 @@ class LLMEngine:
                     "top_p": 0.8,
                     "repeat_penalty": 1.05,
                     "num_predict": 1536,
+                    "stop": ["</tool_call>", "</tool_call >"]
                 }
             }
 

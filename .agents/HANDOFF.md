@@ -2,7 +2,13 @@
 
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
-## Ostatnia Aktywność (Sesja 2026-07-21 - Część 3)
+## Ostatnia Aktywność (Sesja 2026-07-21 - Śledztwo Qwen 7B)
+
+* **[DIAGNOZA I NAPRAWA UKRYTEGO MONOLOGU]** Zdiagnozowano problem z modelem Qwen 7B, który halucynował odpowiedzi zamiast używać narzędzi i pomijał tag `<thought>`. Wynikało to z braku dopięcia reguł "Sandwichingu" w promptach oraz usunięcia `Stop Tokens` w opcjach API.
+* **[POPRAWKI W LLM_ENGINE]** Zmodyfikowano `core/llm_engine.py` dodając z powrotem `critical_rules` na sam koniec system promptu, z twardym zakazem odpowiadania bez monologu oraz naprawiono brakujące `stop: ["</tool_call>", "</tool_call >"]` w konfiguracji Ollamy.
+* **[ARCHITEKTURA MONOLOGU]** Przeprowadzono edukację użytkownika dot. mechanizmów działania mniejszych modeli. Opracowano koncepcję stworzenia "Checklisty zadań" dla Qwena w wewnętrznym monologu, jednak wdrożenie tego zostało odłożone na później.
+
+## Poprzednia Aktywność (Sesja 2026-07-21 - Część 3)
 
 * **[USUNIĘCIE SYSTEMU NOTATNIKA]** Zgodnie z decyzją projektową usunięto całkowicie stary system pamięci długoterminowej oraz brudnopisu. Z plików systemowych usunięto narzędzia (`search_memory`, `queue_note`, `get_pending_notes`, `archive_note`, `save_memory`, `delete_memory`) oraz usunięto sekcje ich użycia z promptów dla poszczególnych modeli (`tier_prime.md`, `tier_regis.md`, `tier_butler.md`). Pliki `data/memory.json` i `data/pending_notes.json` zostały skasowane. W przyszłości planuje się wdrożenie nowocześniejszego rozwiązania.
 
