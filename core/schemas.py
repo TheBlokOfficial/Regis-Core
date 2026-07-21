@@ -140,7 +140,7 @@ BASE_TOOLS_SCHEMA = [
         "required_tier": "regis",
         "function": {
             "name": "open_notes",
-            "description": "Otwiera aplikację Brudnopisu (Staging) z zanotowanymi wcześniej szkicami i kładzie ją na Twoim biurku. TWARDA DYREKTYWA: PO UŻYCIU TEGO NARZĘDZIA od razu przeczytaj wstrzyknięty na dole blok <desk_state>. Jeśli znajdziesz w nim nowe fakty do archiwizacji, musisz wywołać 'save_note' w kolejnym kroku (i powtarzać iteracje aż wyczyścisz brudnopis narzędziem 'clear_queue'). Nie ignoruj tego obowiązku!",
+            "description": "Otwiera aplikację Brudnopisu (Staging) z zanotowanymi wcześniej szkicami i kładzie ją na Twoim biurku. ZAWSZE po użyciu tego narzędzia odczytaj nowo wstrzyknięty blok <desk_state>. Następnie wykonaj pracę archiwisty: wywołuj 'save_note' (pamiętając o parametrze clear_queue_ids) dla każdego ważnego faktu widocznego na biurku.",
             "parameters": {
                 "type": "object",
                 "properties": {},

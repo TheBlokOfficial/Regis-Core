@@ -74,7 +74,7 @@ class LLMEngine:
         except Exception as e:
             logging.warning(f"Błąd ładowania {tier_path}: {e}")
             
-        sandwich = "\n\n## KRYTYCZNE ZASADY BEHAWIORALNE (PRZYPOMNIENIE)\n- Zanim wywołasz narzędzie lub powiesz cokolwiek, ZAWSZE wygeneruj swój monolog zaczynający się od `<thought>` i kończący się na `</thought>`.\n- Po zamknięciu myśli zachowaj ABSOLUTNĄ CISZĘ i wygeneruj od razu czystą strukturę `<tool_call>` (żadnego tekstu w stylu 'Dobrze, sprawdzam').\n- Narzędzi używaj ściśle wedle wytycznych i zawsze naprawiaj własne błędy, jeśli JSON zwróci error."
+        sandwich = "\n\n## KRYTYCZNE ZASADY BEHAWIORALNE (PRZYPOMNIENIE)\n- Zanim wywołasz narzędzie lub powiesz cokolwiek, ZAWSZE wygeneruj swój monolog zaczynający się od `<thought>` i kończący się na `</thought>`.\n- Po zamknięciu myśli zachowaj ABSOLUTNĄ CISZĘ i wygeneruj od razu wywołanie narzędzia (żadnego tekstu w stylu 'Dobrze, sprawdzam').\n- Narzędzi używaj ściśle wedle wytycznych i zawsze naprawiaj własne błędy, jeśli narzędzie zwróci error."
         return f"{tier_prompt}\n\n{base_prompt}{sandwich}"
 
     def clear_history(self) -> None:
