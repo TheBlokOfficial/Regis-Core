@@ -119,6 +119,24 @@ BASE_TOOLS_SCHEMA = [
     },
     {
         "type": "function",
+        "required_tier": "butler",
+        "function": {
+            "name": "queue_note",
+            "description": "Zapisuje nową notatkę do kolejki buforowej (Staging). Używaj tego, aby zapamiętywać fakty o użytkowniku po usłyszeniu ich w rozmowie. Notatka zostanie później zweryfikowana przez system.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fact": {
+                        "type": "string",
+                        "description": "Treść faktu do zapamiętania, np. 'Mieszka w Nysie', 'Nie lubi wstawania wcześnie'."
+                    }
+                },
+                "required": ["fact"]
+            }
+        }
+    },
+    {
+        "type": "function",
         "required_tier": "regis",
         "function": {
             "name": "save_note",

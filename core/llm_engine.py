@@ -7,6 +7,7 @@ import datetime
 
 from core.exceptions import LLMConnectionError
 from core.stream_parser import StreamingTokenParser
+from core.schemas import BASE_TOOLS_SCHEMA
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_GENERATE_URL = f"{OLLAMA_BASE_URL}/api/generate"
@@ -124,13 +125,15 @@ class LLMEngine:
         
         message_content = response_text
         cuts = []
+        all_known_tools = [t["function"]["name"] for t in BASE_TOOLS_SCHEMA]
+
         for parsed, start_idx, end_idx in extracted_jsons:
             matched_func = None
             matched_args = None
             cut_start = start_idx
             
             # Wzorzec A: OpenAI
-            if "name" in parsed and "arguments" in parsed and parsed["name"] in valid_tools:
+            if "name" in parsed and "arguments" in parsed and parsed["name"] in all_known_tools:
                 matched_func = parsed["name"]
                 matched_args = parsed["arguments"]
             
@@ -139,7 +142,7 @@ class LLMEngine:
                 prefix = message_content[:start_idx].strip().split()
                 if prefix:
                     potential_func = prefix[-1]
-                    if potential_func in valid_tools:
+                    if potential_func in all_known_tools:
                         matched_func = potential_func
                         matched_args = parsed
                         found_idx = message_content.rfind(potential_func, 0, start_idx)

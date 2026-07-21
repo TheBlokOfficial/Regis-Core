@@ -52,6 +52,8 @@ class ToolsRegistry:
                 return self._get_weather(arguments.get("location", ""))
             elif tool_name == "save_note":
                 return self._save_note(arguments.get("key", ""), arguments.get("content", ""))
+            elif tool_name == "queue_note":
+                return self._queue_note(arguments.get("fact", ""))
             elif tool_name == "read_notes":
                 return self._read_notes(arguments.get("key"))
             elif tool_name == "delete_note":
@@ -179,6 +181,34 @@ class ToolsRegistry:
         except Exception as e:
             logging.error(f"Błąd zapisywania pamięci: {e}")
             return False
+
+    def _queue_note(self, fact: str) -> str:
+        import os, json, datetime
+        if not fact:
+            return json.dumps({"error": "Brakuje faktu do zapisania."}, ensure_ascii=False)
+        
+        path = os.path.join("data", "pending_notes.json")
+        pending = []
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    pending = json.load(f)
+            except Exception:
+                pass
+                
+        pending.append({
+            "timestamp": datetime.datetime.now().isoformat(),
+            "fact": fact
+        })
+        
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(pending, f, ensure_ascii=False, indent=4)
+            return json.dumps({"result": "success", "message": "Zapisano fakt w kolejce do przetworzenia."}, ensure_ascii=False)
+        except Exception as e:
+            logging.error(f"Błąd zapisu do kolejki notatek: {e}")
+            return json.dumps({"error": "Nie udało się zapisać faktu do kolejki."}, ensure_ascii=False)
 
     def _save_note(self, key: str, content: str) -> str:
         if not key or not content:
