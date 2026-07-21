@@ -225,15 +225,15 @@ class LLMEngine:
             
             # Bezpieczna kopia wiadomości, do której na sam dół dodajemy świeży stan
             current_messages = messages.copy()
-            # Szukamy ostatniej wiadomości użytkownika, żeby dokleić do niej stan biurka
-            # (Qwen 2.5 ma problem, gdy wiadomość systemowa znajduje się na samym końcu konwersacji)
+            # Szukamy ostatniej wiadomości wejściowej ('user' lub 'tool'), żeby dokleić do niej stan biurka.
+            # W ten sposób zachowujemy chronologię (jeśli jesteśmy po wywołaniu narzędzia, stan doklei się do odpowiedzi narzędzia).
             for i in range(len(current_messages) - 1, -1, -1):
-                if current_messages[i]["role"] == "user":
+                if current_messages[i]["role"] in ["user", "tool"]:
                     current_messages[i] = current_messages[i].copy()
-                    current_messages[i]["content"] += state_injection
+                    current_messages[i]["content"] = str(current_messages[i].get("content", "")) + state_injection
                     break
             else:
-                # Fallback, jeśli z jakiegoś powodu nie ma wiadomości usera
+                # Fallback
                 current_messages.append({"role": "user", "content": state_injection})
             
             payload = {
