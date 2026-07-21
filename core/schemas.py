@@ -204,7 +204,7 @@ BASE_TOOLS_SCHEMA = [
                         "items": {
                             "type": "string"
                         },
-                        "description": "Opcjonalnie: Lista ID notatek z brudnopisu, które mają zostać usunięte z kolejki natychmiast po udanym zapisie. Używaj tego ZAWSZE podczas archiwizowania brudnopisu (oszczędza to wywoływania osobnego narzędzia clear_queue)."
+                        "description": "Opcjonalnie: Lista ID TYLKO TYCH notatek z brudnopisu, które właśnie przeniosłeś w tym konkretnym wywołaniu save_note. Nigdy nie podawaj tu ID notatek, których jeszcze nie zapisałeś!"
                     }
                 },
                 "required": ["key", "content"]
