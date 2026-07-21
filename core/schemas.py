@@ -180,7 +180,7 @@ BASE_TOOLS_SCHEMA = [
                 "properties": {
                     "key": {
                         "type": "string",
-                        "description": "Klucz notatki (np. 'pogoda_miasto', 'ulubiony_kolor'). Bez spacji, z użyciem podkreślników."
+                        "description": "Klucz notatki. Bez spacji, z użyciem podkreślników."
                     },
                     "content": {
                         "type": "string",
