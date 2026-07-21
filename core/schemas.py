@@ -103,14 +103,14 @@ BASE_TOOLS_SCHEMA = [
         "type": "function",
         "required_tier": "butler",
         "function": {
-            "name": "read_notes",
-            "description": "Zwraca notatki z Pamięci Długoterminowej (Notatnika). Używaj tego, aby odświeżyć pamięć o użytkowniku po rozpoczęciu nowej sesji. ZAWSZE preferuj wywołanie tego narzędzia bez argumentu 'key', aby otrzymać pełen spis dostępnych kluczy, z których następnie wybierzesz właściwy.",
+            "name": "open_notebook_search",
+            "description": "Przeszukuje Notatnik użytkownika (Pamięć Długoterminowa) w poszukiwaniu konkretnych informacji i kładzie wyniki na Twoim biurku. ZAWSZE preferuj wywołanie tego narzędzia bez argumentu 'query', aby otrzymać pełen spis dostępnych kluczy. TWARDA DYREKTYWA: Po użyciu tego narzędzia NIE wywołuj go ponownie ani nie używaj innych narzędzi do odczytu. Przejdź od razu do analizy bloku <desk_state>, który zaktualizował się na końcu Twojego kontekstu.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "key": {
+                    "query": {
                         "type": "string",
-                        "description": "Opcjonalny klucz notatki do odczytania. Jeśli nie masz 100% pewności jak nazywa się klucz, zignoruj ten argument i wywołaj read_notes bez niego, by zdobyć listę wszystkich kluczy."
+                        "description": "Opcjonalny klucz notatki do odczytania. Jeśli nie masz 100% pewności jak nazywa się klucz, zignoruj ten argument i wywołaj bez niego, by zdobyć listę wszystkich kluczy."
                     }
                 },
                 "required": []
@@ -140,7 +140,7 @@ BASE_TOOLS_SCHEMA = [
         "required_tier": "regis",
         "function": {
             "name": "open_notes",
-            "description": "Otwiera aplikację Brudnopisu (Staging) z zanotowanymi wcześniej szkicami i kładzie ją na Twoim biurku. Będziesz widział zawartość aplikacji dopóki jej nie zamkniesz.",
+            "description": "Otwiera aplikację Brudnopisu (Staging) z zanotowanymi wcześniej szkicami i kładzie ją na Twoim biurku. Będziesz widział zawartość aplikacji dopóki jej nie zamkniesz. TWARDA DYREKTYWA: PO UŻYCIU TEGO NARZĘDZIA NIE WYWOŁUJ ŻADNYCH INNYCH NARZĘDZI ODCZYTU (ani open_notes, ani open_notebook_search). Przejdź od razu do analizy nowo wstrzykniętego bloku <desk_state>.",
             "parameters": {
                 "type": "object",
                 "properties": {},

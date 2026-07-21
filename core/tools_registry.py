@@ -1,5 +1,9 @@
 import json
 import logging
+import os
+import datetime
+import uuid
+import requests
 from typing import Any, Callable
 
 from core.schemas import BASE_TOOLS_SCHEMA
@@ -51,17 +55,13 @@ class ToolsRegistry:
             if tool_name == "get_devices":
                 return self._get_devices(arguments.get("domain"))
             elif tool_name == "get_device_state":
-                return self._get_device_state(arguments.get("entity_id", ""))
+                return self._get_device_state(arguments.get("entity_id"))
             elif tool_name == "execute_ha_action":
-                return self._execute_ha_action(
-                    arguments.get("action", ""),
-                    arguments.get("entity_id", ""),
-                    arguments.get("parameters", {})
-                )
+                return self._execute_ha_action(arguments.get("action"), arguments.get("entity_id"), arguments.get("parameters"))
             elif tool_name == "get_current_time":
                 return self._get_current_time()
             elif tool_name == "get_weather":
-                return self._get_weather(arguments.get("location", ""))
+                return self._get_weather(arguments.get("location"))
             elif tool_name == "save_note":
                 return self._save_note(arguments.get("key", ""), arguments.get("content", ""))
             elif tool_name == "queue_note":
@@ -72,8 +72,8 @@ class ToolsRegistry:
                 return self._close_notes()
             elif tool_name == "clear_queue":
                 return self._clear_queue(arguments.get("ids", []))
-            elif tool_name == "read_notes":
-                return self._read_notes(arguments.get("key"))
+            elif tool_name == "open_notebook_search":
+                return self._open_notebook_search(arguments.get("query"))
             elif tool_name == "delete_note":
                 return self._delete_note(arguments.get("key", ""))
             else:
@@ -130,19 +130,19 @@ class ToolsRegistry:
             return json.dumps({"error": f"Execution Failed. Action {action} failed to apply on {entity_id}. Ensure parameters are correct for this device type."})
 
     def _get_current_time(self) -> str:
-        import datetime
         now = datetime.datetime.now()
+        days = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"]
+        day = days[now.weekday()]
         return json.dumps({
             "current_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "weekday": now.strftime("%A")
+            "day_of_week": day
         }, ensure_ascii=False)
 
     def _get_weather(self, location: str) -> str:
         if not location:
-            return json.dumps({"error": "Brak lokalizacji. Opowiedz użytkownikowi, że potrzebujesz nazwy miasta."}, ensure_ascii=False)
+            return json.dumps({"error": "Musisz podać nazwę miasta."})
         
         try:
-            import requests
             # Używamy serwisu wttr.in dla prostych danych pogodowych
             url = f"https://wttr.in/{location}?format=j1"
             response = requests.get(url, timeout=10)
@@ -173,11 +173,9 @@ class ToolsRegistry:
             return json.dumps({"error": f"Błąd parsowania danych o pogodzie: {str(e)}"}, ensure_ascii=False)
 
     def _get_memory_path(self) -> str:
-        import os
         return os.path.join("data", "memory.json")
 
     def _load_memory(self) -> dict:
-        import os, json
         path = self._get_memory_path()
         if not os.path.exists(path):
             return {}
@@ -189,7 +187,6 @@ class ToolsRegistry:
             return {}
 
     def _save_memory(self, memory: dict) -> bool:
-        import os, json
         path = self._get_memory_path()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -201,7 +198,7 @@ class ToolsRegistry:
             return False
 
     def _queue_note(self, fact: str) -> str:
-        import os, json, datetime, uuid
+        self._ping_app("notatki")
         if not fact:
             return json.dumps({"error": "Brakuje faktu do zapisania."}, ensure_ascii=False)
         
@@ -224,6 +221,7 @@ class ToolsRegistry:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(pending, f, ensure_ascii=False, indent=4)
+            self._notes_cache = None
             return json.dumps({"result": "success", "message": "Zapisano fakt w kolejce do przetworzenia."}, ensure_ascii=False)
         except Exception as e:
             logging.error(f"Błąd zapisu do kolejki notatek: {e}")
@@ -240,32 +238,58 @@ class ToolsRegistry:
             logging.info(f"Aplikacja '{app}' została zamknięta automatycznie (TTL timeout).")
             del self.desk_apps[app]
 
+    def _ping_app(self, app_name: str):
+        if app_name in self.desk_apps:
+            self.desk_apps[app_name]["ttl"] = 10
+
     def get_desk_state(self) -> str:
         """Pobiera aktualny stan biurka z otwartymi aplikacjami."""
         if not self.desk_apps:
             return ""
             
-        import os, json
         state_parts = []
         for app, data in self.desk_apps.items():
-            if app == "notatki":
-                path = os.path.join("data", "pending_notes.json")
-                content = "Kolejka jest pusta."
-                if os.path.exists(path):
-                    try:
-                        with open(path, "r", encoding="utf-8") as f:
-                            pending = json.load(f)
-                            if pending:
-                                content = json.dumps(pending, ensure_ascii=False, indent=2)
-                    except Exception:
-                        content = "Błąd odczytu."
-                state_parts.append(f"[Biurko: Otwarte Notatki (wygasną za {data['ttl']} tur bezczynności)]\nZawartość:\n{content}")
+            content = "Błąd pobierania stanu."
+            if "get_state" in data:
+                try:
+                    content = data["get_state"]()
+                except Exception as e:
+                    content = f"Błąd wstrzykiwania stanu aplikacji: {e}"
+            state_parts.append(f"[Biurko: Aplikacja '{app}' (wygasną za {data['ttl']} tur bezczynności)]\nZawartość:\n{content}")
         
         return "\n\n".join(state_parts)
 
+    def _get_staging_state(self) -> str:
+        """Pobiera zawartość brudnopisu używając cache."""
+        if getattr(self, '_notes_cache', None) is None:
+            path = os.path.join("data", "pending_notes.json")
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        pending = json.load(f)
+                        self._notes_cache = json.dumps(pending, ensure_ascii=False, indent=2) if pending else "Kolejka jest pusta."
+                except Exception:
+                    self._notes_cache = "Błąd odczytu."
+            else:
+                self._notes_cache = "Kolejka jest pusta."
+        return self._notes_cache
+
     def _open_notes(self) -> str:
-        self.desk_apps["notatki"] = {"ttl": 10}
-        return json.dumps({"result": "success", "message": "Otwarto aplikację Brudnopisu i położono na biurku. Zawartość zobaczysz w bloku <desk_state>."}, ensure_ascii=False)
+        self._notes_cache = None
+        self.desk_apps["notatki"] = {
+            "ttl": 10,
+            "get_state": self._get_staging_state
+        }
+        
+        path = os.path.join("data", "pending_notes.json")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                pending = json.load(f)
+                preview = {"status": "sukces", "otwarte_elementy": len(pending), "wskazówka": "Pełna treść znajduje się w bloku <desk_state> poniżej."}
+        except:
+            preview = {"status": "sukces", "otwarte_elementy": 0, "wskazówka": "Brudnopis jest pusty lub wystąpił błąd. Spójrz na <desk_state>."}
+            
+        return json.dumps(preview, ensure_ascii=False)
 
     def _close_notes(self) -> str:
         if "notatki" in self.desk_apps:
@@ -273,10 +297,8 @@ class ToolsRegistry:
         return json.dumps({"result": "success", "message": "Aplikacja Brudnopisu została poprawnie zamknięta i usunięta z biurka."}, ensure_ascii=False)
 
     def _clear_queue(self, ids: list[str]) -> str:
-        import os, json
-        # Reset TTL aplikacji notatnik, jeśli otwarta
-        if "notatki" in self.desk_apps:
-            self.desk_apps["notatki"]["ttl"] = 10
+        self._ping_app("notatki")
+        self._notes_cache = None
             
         if not ids or not isinstance(ids, list):
             return json.dumps({"error": "Musisz podać listę 'ids' do usunięcia."}, ensure_ascii=False)
@@ -302,10 +324,8 @@ class ToolsRegistry:
             return json.dumps({"error": "Wystąpił błąd podczas usuwania pozycji z kolejki."}, ensure_ascii=False)
 
     def _save_note(self, key: str, content: str) -> str:
-        import os, json
-        # Reset TTL aplikacji notatnik, jeśli otwarta
-        if "notatki" in self.desk_apps:
-            self.desk_apps["notatki"]["ttl"] = 10
+        self._ping_app("notatki")
+        self._ping_app("wyniki_wyszukiwania")
             
         if not key or not content:
             return json.dumps({"error": "Brakuje klucza lub treści notatki."}, ensure_ascii=False)
@@ -315,19 +335,34 @@ class ToolsRegistry:
             return json.dumps({"result": "success", "message": f"Zapisano notatkę pod kluczem '{key}'."}, ensure_ascii=False)
         return json.dumps({"error": "Nie udało się zapisać notatki na dysku."}, ensure_ascii=False)
 
-    def _read_notes(self, key: str = None) -> str:
+    def _open_notebook_search(self, query: str = None) -> str:
         memory = self._load_memory()
         if not memory:
-            return json.dumps({"message": "Notatnik jest pusty."}, ensure_ascii=False)
-        if key:
-            if key in memory:
-                return json.dumps({key: memory[key]}, ensure_ascii=False)
-            else:
-                return json.dumps({"error": f"Nie znaleziono notatki o kluczu '{key}'."}, ensure_ascii=False)
+            return json.dumps({"status": "sukces", "znaleziono": 0, "message": "Notatnik jest pusty."}, ensure_ascii=False)
+            
+        results = {}
+        if query:
+            if query in memory:
+                results = {query: memory[query]}
         else:
-            return json.dumps({"keys": list(memory.keys())}, ensure_ascii=False)
+            results = {"Dostępne klucze (brak query)": list(memory.keys())}
+            
+        self.desk_apps["wyniki_wyszukiwania"] = {
+            "ttl": 10,
+            "get_state": lambda: json.dumps(results, ensure_ascii=False, indent=2)
+        }
+        
+        preview = {
+            "status": "sukces",
+            "znaleziono": len(results),
+            "podglad_kluczy": list(results.keys())[:3],
+            "wskazówka": "Wyniki wyszukiwania przypięto do Twojego biurka. Przejdź do bloku <desk_state> na dole, by je przeczytać."
+        }
+        return json.dumps(preview, ensure_ascii=False)
 
     def _delete_note(self, key: str) -> str:
+        self._ping_app("notatki")
+        self._ping_app("wyniki_wyszukiwania")
         if not key:
             return json.dumps({"error": "Brakuje klucza notatki do usunięcia."}, ensure_ascii=False)
         memory = self._load_memory()

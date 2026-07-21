@@ -212,7 +212,12 @@ class LLMEngine:
             parser.reset_state()
             
             # Wzorzec Open/Close: Wstrzykiwanie aktualnego stanu otwartych aplikacji na biurku
-            desk_state_content = tools_registry.get_desk_state() if hasattr(tools_registry, 'get_desk_state') else ""
+            try:
+                desk_state_content = tools_registry.get_desk_state() if hasattr(tools_registry, 'get_desk_state') else ""
+            except Exception as e:
+                logging.error(f"Krytyczny błąd pobierania stanu biurka: {e}")
+                desk_state_content = f"Wystąpił błąd podczas sprawdzania biurka: {e}"
+                
             if not desk_state_content:
                 desk_state_content = "Biurko jest puste."
                     
