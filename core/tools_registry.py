@@ -63,7 +63,7 @@ class ToolsRegistry:
             elif tool_name == "get_weather":
                 return self._get_weather(arguments.get("location"))
             elif tool_name == "save_note":
-                return self._save_note(arguments.get("key", ""), arguments.get("content", ""))
+                return self._save_note(arguments.get("key", ""), arguments.get("content", ""), arguments.get("clear_queue_ids"))
             elif tool_name == "queue_note":
                 return self._queue_note(arguments.get("fact", ""))
             elif tool_name == "open_notes":
@@ -323,7 +323,7 @@ class ToolsRegistry:
             logging.error(f"Błąd czyszczenia kolejki: {e}")
             return json.dumps({"error": "Wystąpił błąd podczas usuwania pozycji z kolejki."}, ensure_ascii=False)
 
-    def _save_note(self, key: str, content: str) -> str:
+    def _save_note(self, key: str, content: str, clear_queue_ids: list[str] = None) -> str:
         self._ping_app("notatki")
         self._ping_app("wyniki_wyszukiwania")
             
@@ -332,7 +332,12 @@ class ToolsRegistry:
         memory = self._load_memory()
         memory[key] = content
         if self._save_memory(memory):
-            return json.dumps({"result": "success", "message": f"Zapisano notatkę pod kluczem '{key}'."}, ensure_ascii=False)
+            msg = f"Zapisano notatkę pod kluczem '{key}'."
+            if clear_queue_ids:
+                clear_res = json.loads(self._clear_queue(clear_queue_ids))
+                if "error" not in clear_res:
+                    msg += f" {clear_res.get('message', '')}"
+            return json.dumps({"result": "success", "message": msg}, ensure_ascii=False)
         return json.dumps({"error": "Nie udało się zapisać notatki na dysku."}, ensure_ascii=False)
 
     def _open_notebook_search(self, query: str = None) -> str:

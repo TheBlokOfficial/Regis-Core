@@ -198,6 +198,13 @@ BASE_TOOLS_SCHEMA = [
                     "content": {
                         "type": "string",
                         "description": "Treść notatki do zapamiętania. Twórz wyczerpujące wpisy, preferuj zapisywanie całych zdań z kontekstem (np. 'Użytkownik aktualnie mieszka w Nysie, ale rzadko bywa w centrum'), a nie pojedynczych słów."
+                    },
+                    "clear_queue_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Opcjonalnie: Lista ID notatek z brudnopisu, które mają zostać usunięte z kolejki natychmiast po udanym zapisie. Używaj tego ZAWSZE podczas archiwizowania brudnopisu (oszczędza to wywoływania osobnego narzędzia clear_queue)."
                     }
                 },
                 "required": ["key", "content"]
