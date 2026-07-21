@@ -73,7 +73,8 @@ class LLMEngine:
         except Exception as e:
             logging.warning(f"Błąd ładowania {tier_path}: {e}")
             
-        return f"{base_prompt}\n{tier_prompt}"
+        sandwich = "\n\n## KRYTYCZNE ZASADY BEHAWIORALNE (PRZYPOMNIENIE)\n- Zanim wywołasz narzędzie lub powiesz cokolwiek, ZAWSZE wygeneruj swój monolog zaczynający się od `<thought>` i kończący się na `</thought>`.\n- Po zamknięciu myśli zachowaj ABSOLUTNĄ CISZĘ i wygeneruj od razu czystą strukturę `<tool_call>` (żadnego tekstu w stylu 'Dobrze, sprawdzam').\n- Narzędzi używaj ściśle wedle wytycznych i zawsze naprawiaj własne błędy, jeśli JSON zwróci error."
+        return f"{tier_prompt}\n\n{base_prompt}{sandwich}"
 
     def clear_history(self) -> None:
         """Czyszczenie lokalnej historii konwersacji."""
@@ -154,10 +155,12 @@ class LLMEngine:
                 })
                 cuts.append((cut_start, end_idx))
                 logging.warning(f"Zastosowano Fallback Parsowania dla narzędzia: {matched_func}")
+                break # Bierzemy tylko pierwsze wywołanie!
 
-        # Oczyszczenie tekstu z zebranych JSONów.
-        for c_start, c_end in reversed(cuts):
-            message_content = message_content[:c_start] + message_content[c_end:]
+        # Jeśli znaleziono narzędzie, ucinamy tekst na początku jego wywołania, aby pozbyć się halucynacji "parallel tool calling" i zachować tylko thought.
+        if cuts:
+            c_start, c_end = cuts[0]
+            message_content = message_content[:c_start]
 
         # Oczyszczenie ze zbędnych śmieci
         message_content = message_content.replace("</tool_call>", "").replace("<tool_call>", "").replace("```json", "").replace("```", "").strip()
@@ -212,7 +215,8 @@ class LLMEngine:
                     "num_ctx": 4096,
                     "top_p": 0.8,
                     "repeat_penalty": 1.05,
-                    "num_predict": 512
+                    "num_predict": 512,
+                    "stop": ["</tool_call>", "</tool_call >"]
                 }
             }
 
@@ -246,6 +250,10 @@ class LLMEngine:
                         tool_calls_accumulator = extracted_tool_calls
                         response_text = cleaned_text
                         full_content = cleaned_text
+
+                if tool_calls_accumulator and len(tool_calls_accumulator) > 1:
+                    logging.warning(f"Zablokowano równoległe wywołania narzędzi. Odcięto {len(tool_calls_accumulator) - 1} narzędzi.")
+                    tool_calls_accumulator = [tool_calls_accumulator[0]]
 
                 message = {"role": "assistant", "content": full_content}
                 if tool_calls_accumulator:

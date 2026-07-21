@@ -17,6 +17,7 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Przebudowa promptów systemowych na format wypunktowanych list (lepsze instruction following dla Instruct).
 - [x] Wdrożenie wewnętrznego monologu `<thought>...</thought>` z real-time streamingiem w CLI.
 - [x] Refaktoryzacja pętli konwersacyjnej ReAct na architekturę Event-Driven ze StreamingTokenParserem.
+- [x] Zaawansowany Prompt Engineering: Wdrożenie checklist, pętli self-correction i 3-warstwowej ochrony przed halucynacjami Parallel Tool Calling (w tym Prompt Anchoring) dla Qwen 2.5.
 - [ ] Stworzenie usługi telemetrycznej "Handoff" do przerzucania zadań z Maliny na PC (Boss Mode).
 - [ ] Integracja systemu WakeWord (oczekiwanie na dyskusję nt. wyboru narzędzia).
 - [ ] Integracja systemu Speech-To-Text.

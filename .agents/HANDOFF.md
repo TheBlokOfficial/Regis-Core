@@ -4,36 +4,30 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ## Ostatnia Aktywność (Sesja 2026-07-21)
 
-* **[ZMIANA MODELI]** Przełączono wszystkie referencje modeli z `qwen2.5:7b` i `qwen2.5:14b` na warianty **Instruct**: `qwen2.5:7b-instruct` i `qwen2.5:14b-instruct`. Zmiana dotyczy: `main.py`, `ui/cli.py`, `test_stream.py`, `docs/ARCHITECTURE.md`. Modele zostały pobrane przez `ollama pull`.
-* **[USUNIĘCIE TWO-PASS]** Całkowicie usunięto mechanizm "Two-Pass Generation" z `core/llm_engine.py`. Zamiast dwóch osobnych przebiegów (faza narzędziowa z temp=0.1 + faza odpowiedzi z temp=0.7), system ma teraz **jeden przebieg** z narzędziami zawsze dostępnymi i stałą temperaturą. Temperatura Regisa obniżona do **0.4** (z 0.7), Lokaja pozostała **0.1**. Usunięto parametr `tool_temperature` z konstruktora `LLMEngine`. Pętla ReAct działa nadal poprawnie.
-* **[PROMPTY W WYPUNKTOWANEJ LIŚCIE]** Przepisano wszystkie 3 pliki promptów (`base_system.md`, `tier_butler.md`, `tier_regis.md`) z formy akapitów prozatorskich na wypunktowane listy, co znacznie poprawia instruction following w modelach Instruct.
-* **[NAPRAWA PARSERA FALLBACK]** Naprawiono błąd w `_parse_fallback_tool_calls` w `llm_engine.py` - stary kod przerywał pętlę po znalezieniu pierwszego tool calla (`break`), ignorując kolejne. Teraz zbiera wszystkie tool calle i czyści z tekstu pełne JSON-y. Dodano czyszczenie znaczników `<tool_call>`, `</tool_call>` i artefaktu `icz`.
-* **[REFAKTORYZACJA PĘTLI STREAMINGOWEJ (Event-Driven)]** Wyrzucono logikę parsowania tagów myśli z CLI i przeniesiono ją do modułu rdzenia `core/stream_parser.py` (StreamingTokenParser). System jest teraz w pełni event-driven:
-  - Silnik używa prostych callbacks: `on_thought_token`, `on_content_token`, `on_tool_call`.
-  - Parser w locie ucina potencjalne błędy Ollamy przy użyciu Stateful Buffer i Lookaheadu. Posiada zabezpieczenia wycinające ucięte śmieci po tagach. Na początku każdej iteracji ReAct robiony jest twardy reset parsera `reset_state()`.
-  - Pętla ReAct posiada teraz twardy bezpiecznik `max_iterations = 15`, chroniący przed uwięzieniem systemu w halucynacji LLM-a.
-* **[ZABEZPIECZENIA W UI (Rich)]** W `ui/cli.py` użyto twardego flagowania `markup=False`, by model nie rzucał błędu MarkupError podczas emitowania myśli bogatych w nawiasy kwadratowe. Interfejs inteligentnie wstrzymuje druk linii `Regis: `, dopóki z parsera nie wpadnie pierwszy prawdziwie "nie-biały" znak preambuły (likwidacja "pustych" sierocych logów).
-* **[ULEPSZONY FALLBACK PARSER]** Fallback parser uodporniono na "brudne" wstrzykiwanie cudzysłowów podczas tekstu - wykorzystano fuzzy repair na bazie maszyny stosowej wyłapującej stringi i klamry.
+* **[ZAAWANSOWANY PROMPT ENGINEERING v2]** Wdrożono dokument `docs/PROMPT_ENGINEERING.md` i przepisano całkowicie strukturę promptów (`tier_butler.md`, `tier_regis.md`, `base_system.md`). Model otrzymuje tożsamość na początku, ma liniowe checklisty Krok-Po-Kroku z ujętą Pętlą Naprawczą, a na końcu stosowany jest "Sandwiching" przypominający mu o twardych restrykcjach przed samą generacją.
+* **[LOGIKA ŁĄCZENIA W SILNIKU]** W `core/llm_engine.py` odwrócono kolejność: najpierw ładuje się `tier_prompt`, potem `base_system`. Do tego na sam dół dopinany jest twardy przypominacz `KRYTYCZNE ZASADY BEHAWIORALNE`, który skutecznie zabija u modelu chęć wylewnego monologowania poza tagiem `<thought>`.
+* **[PARALLEL TOOL CALLING FIX (3 Warstwy)]** Rozwiązano problem halucynacji przy równoległym wywoływaniu wielu narzędzi (model nie czekał na wyniki). Wdrożono:
+  1. *Warstwa 1 (Prompt):* Miękki nakaz jednego narzędzia na iterację.
+  2. *Warstwa 2 (API):* Wstrzyknięcie Stop Tokens (`"stop": ["</tool_call>", "</tool_call >"]`) w payload Ollamy.
+  3. *Warstwa 3 (Parser):* Limiter w głównej pętli Pythona (oraz fallback parserze), który twardo odcina nadmiarowe narzędzia i śmieci (zostawiając tylko pierwsze), zachowując sterylną higienę historii konwersacyjnej dla LLM.
+* **[PROMPT ANCHORING FIX]** Rozwiązano problem, gdzie model nadgorliwie wywoływał `get_current_time()` w reakcji na zwykłe "Cześć" z powodu braku alternatywnych instrukcji w prompcie. W `base_system.md` dopisano nową regułę powstrzymywania się od akcji oraz **Drugi Kontrastujący Przykład Few-Shot**, w którym model widzi, że na powitanie ma odpowiedzieć tylko krótką gotowością.
 
 ## Obecny Stan Projektu
 
 * System posiada absolutnie pancerną pętlę ReAct, bezpieczną na zerwania sieci (w tym cofanie historii pytań) i parsowania szczątkowe.
-* Fallback parser łata wadliwe outputy Qwena bez zawieszania pętli.
-* Terminal został zoptymalizowany.
-* Prompty systemowe zachowują formę wypunktowaną, ale aktualny model jest nadmiernie wylewny pomiędzy jednym a drugim użyciem narzędzia w pętli. 
+* Zarówno model 7B jak i 14B Qwen 2.5 Instruct osiągają szczyty swoich możliwości dedukcyjnych. Skrupulatnie monologują w `<thought>` i powstrzymują się od niechcianych akcji.
+* Prompty systemowe zachowują formę wypunktowanych list, a warstwa backendu blokuje generację błędów (Stop Tokens). 
+* Zaimplementowano pętle naprawcze (Self-Correction) na wypadek błędnych parametrów w JSON.
 
 ## Następne Kroki (Next Steps)
 
-1. **Prompt Engineering:** Niezbędne jest drastyczne dostrojenie promptów. Aktualnie model ma tendencję do "gadania" między fazami poszukiwania informacji (np. "Sprawdzę co u ciebie"). Należy w instrukcjach systemowych `tier_regis.md` / `base_system.md` wymusić całkowity, żelazny zakaz zwracania tekstu podczas iteracji, ograniczając monolog WYŁĄCZNIE do wnętrza tagów `<thought>`.
-2. **Handoff (Boss Mode):** System w tle na PC nasłuchujący żądań i delegowanie do modelu 14b, jeśli dostępne są zasoby VRAM.
+1. **Handoff (Boss Mode):** System w tle na PC nasłuchujący żądań i delegowanie do potężniejszego modelu 14b, jeśli dostępne są zasoby VRAM, podczas gdy na co dzień dom obsługuje mały model Lokaj (7B) pracujący np. na Raspberry Pi.
 2. **System Audio:** Badania i integracja WakeWord (Porcupine / OpenWakeWord) oraz silnika STT (Whisper).
-3. **Przetestowanie monologu `<thought>` live** — warto obserwować czy model 7B (Lokaj) też solidnie używa tagów, czy trzeba mu mocniej to wymusić w `tier_butler.md`.
+3. **Obsługa Błędów Narzędzi:** O ile pętla naprawcza jest, warto sprawdzić czy modele potrafią same dobrze zgadnąć poprawny parametr, czy potrzebują inteligentniejszych logów błędów generowanych przez HA (np. bliska nazwa urządzenia).
 
 ## Wiedza i Przemyślenia (Gotchas)
 
+* Małe modele (7B) nie znoszą zakazów w próżni. Zamiast pisać "Nie wywołuj narzędzi", musisz pokazać w Few-Shot *co* ma zrobić w zamian. Kontrastujące przykłady działają wybitnie.
+* Qwen 2.5 natywnie wymusza parallel tool calling i czasem emituje kilka JSON-ów naraz, ignorując kolejność logiczną. API Stop Tokens (`</tool_call>`) w Ollamie to absolutna konieczność, by pętla ReAct działała krok po kroku.
 * Pamiętaj o zachowaniu ascetycznego UX. Unikaj bogatych, krzykliwych kolorów.
-* Modele Instruct używają natywnych znaczników `<tool_call>` / `</tool_call>` podczas generowania. Parser CLI i fallback parser w silniku muszą je filtrować — jest to już wdrożone.
-* Artefakt `icz` pojawia się jako resztka po Qwen Instruct podczas streamowania tool-callów. Jest filtrowany w `stream_update`.
-* Temperatura 0.4 dla Regisa (14B Instruct) daje dobre wyniki — modele Instruct nie potrzebują 0.7 do naturalnych odpowiedzi.
-* Małe modele 7B mogą nie pisać monologu `<thought>` tak chętnie jak 14B — jeśli nie, wzmocnij instrukcję w `tier_butler.md`.
 * Zawsze używaj operatora średnika `;` zamiast `&&` w terminalu podczas pracy, ponieważ OS to Windows/PowerShell.
