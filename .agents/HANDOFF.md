@@ -3,8 +3,10 @@
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
 ## Ostatnia Aktywność
+* **[NOWE]** Wdrożono eksperymentalną, testową integrację z modelami chmurowymi z rodziny **Gemini API** firmy Google. Dodano klasę `GeminiEngine` zdolną do parsowania formatu OpenAI, omijając hacki wymagane dla lokalnej Ollamy.
+* Rozbudowano CLI o komendę `/provider`, dzięki czemu użytkownik może w każdej chwili "w locie" przełączyć się pomiędzy bezpiecznym lokalnym modelem (Qwen z Ollamy) a potężnym chmurowym bytem (np. `gemini-1.5-pro` lub najnowszymi modelami z rodziny 3.0/3.1 pobieranymi dynamicznie z API za pomocą klucza). Odpowiedzi na narzędzia zostały specjalnie "utwardzone" pod kątem restrykcyjnego parsera Google (dodanie `name` oraz `thought_signature`).
 * Zaimplementowano Pamięć Długoterminową (Notatnik). Zrefaktoryzowano prompt systemowy w `base_system.md`, eliminując sztywne zakazy nakładające "paranoję" na model. Przełączono model na podejście proaktywne: ma swobodę rozmawiania, dopytywania o kontekst i ZAWSZE sprawdza `read_notes` przed zadawaniem pytań w ciemno.
-* Dostosowano parametry LLM w `core/llm_engine.py`: Zwiększono karę za powtórzenia na ostrożne 1.05 (wcześniej 1.15 powodowało "ucieczkę" Qwen 2.5 14b w język rosyjski). Zastosowano dynamiczny `num_predict` (500 dla myśli, ograniczające 150 dla odpowiedzi).
+* Dostosowano parametry LLM w `core/llm_engine.py`: Zwiększono karę za powtórzenia na ostrożne 1.05. Zastosowano dynamiczny `num_predict`.
 * Dodano komendę `/models` w `ui/cli.py` umożliwiającą szybkie testowanie (hot-swap) różnych modeli z Ollamy za pomocą interfejsu questionary podczas jednej sesji.
 
 ## Obecny Stan Projektu

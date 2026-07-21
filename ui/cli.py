@@ -7,6 +7,7 @@ from rich.rule import Rule
 import datetime
 from integrations.ha_client import HomeAssistantClient
 from core.llm_engine import LLMEngine
+from core.gemini_engine import GeminiEngine
 from core.exceptions import HomeAssistantConnectionError, LLMConnectionError
 from core import config
 from core.tools_registry import ToolsRegistry
@@ -60,7 +61,8 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                 console.print("[dim]/exit[/dim] - [dim]Kończy działanie programu[/dim]")
                 console.print("[dim]/clear[/dim] - [dim]Czyści historię bieżącej konwersacji[/dim]")
                 console.print("[dim]/tier[/dim] - [dim]Przełącza pomiędzy Lokajem a Regisem na obecną sesję[/dim]")
-                console.print("[dim]/models[/dim] - [dim]Pozwala zmienić aktywny model LLM z listy dostępnych na Ollamie[/dim]\n")
+                console.print("[dim]/models[/dim] - [dim]Pozwala zmienić aktywny model LLM z listy dostępnych na Ollamie[/dim]")
+                console.print("[dim]/provider[/dim] - [dim]Przełącza między lokalnym Ollama a chmurowym Gemini API[/dim]\n")
                 console.input("[dim]Naciśnij Enter, aby kontynuować...[/dim]")
                 clear_screen()
                 print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
@@ -112,6 +114,42 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                     clear_screen()
                     print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
                     console.print(f"\n[green]Zmieniono model na: {selected_model}[/green]")
+                continue
+                
+            if user_input.lower() == "/provider":
+                provider_choice = questionary.select(
+                    "Wybierz dostawcę LLM na tę sesję:",
+                    choices=["Ollama (Lokalnie)", "Gemini API (Chmura)"],
+                    style=custom_style
+                ).ask()
+                
+                if provider_choice == "Gemini API (Chmura)":
+                    api_key = console.input("[dim]Wprowadź klucz Gemini API (zostanie zapisany tylko w RAM na czas sesji): [/dim]")
+                    if api_key.strip():
+                        import os
+                        os.environ["GEMINI_API_KEY"] = api_key.strip()
+                        
+                        gemini_models = GeminiEngine.get_available_models()
+                        selected_model = questionary.select(
+                            "Wybierz model Gemini:",
+                            choices=gemini_models,
+                            style=custom_style
+                        ).ask()
+                        
+                        if selected_model:
+                            llm_engine = GeminiEngine(model_name=selected_model, tier=llm_engine.tier, temperature=getattr(llm_engine, 'temperature', 0.5))
+                            display_name = f"Regis ({provider_choice})"
+                            clear_screen()
+                            print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
+                            console.print(f"\n[green]Pomyślnie przełączono na Gemini API ({selected_model})[/green]")
+                
+                elif provider_choice == "Ollama (Lokalnie)":
+                    llm_engine = LLMEngine(model_name="qwen2.5:7b" if llm_engine.tier == "butler" else "qwen2.5:14b", tier=llm_engine.tier)
+                    display_name = "Lokaj" if llm_engine.tier == "butler" else "Regis"
+                    clear_screen()
+                    print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
+                    console.print("\n[green]Pomyślnie powrócono do lokalnej Ollamy.[/green]")
+                    
                 continue
                 
             if not user_input.strip():
