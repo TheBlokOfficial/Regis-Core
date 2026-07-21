@@ -9,7 +9,7 @@ from core.exceptions import LLMConnectionError
 from core.stream_parser import StreamingTokenParser
 from core.schemas import BASE_TOOLS_SCHEMA, render_tools_for_prompt
 
-OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_BASE_URL = "http://192.168.0.119:11434"
 OLLAMA_CHAT_URL = f"{OLLAMA_BASE_URL}/api/chat"
 OLLAMA_TAGS_URL = f"{OLLAMA_BASE_URL}/api/tags"
 
@@ -218,7 +218,7 @@ class LLMEngine:
             }
 
             try:
-                response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=120, stream=True)
+                response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=300, stream=True)
                 response.raise_for_status()
 
                 full_content = ""

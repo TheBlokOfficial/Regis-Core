@@ -45,7 +45,7 @@ def main():
             # Konfiguracja per tier
             tier_config = {
                 "butler": {
-                    "model": "qwen2.5:7b-instruct",
+                    "model": "qwen2.5:3b-instruct",
                     "temperature": 0.1,
                     "display_name": "Lokaj"
                 },

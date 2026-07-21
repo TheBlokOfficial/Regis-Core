@@ -2,7 +2,14 @@
 
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
-## Ostatnia Aktywność (Sesja 2026-07-21 - Śledztwo Qwen 7B)
+## Ostatnia Aktywność (Sesja 2026-07-21 - Wdrożenie Raspberry Pi i Modelu 3B)
+
+* **[WDROŻENIE SPRZĘTOWE]** Skonfigurowano Raspberry Pi 5 jako główny węzeł w domowej sieci (Recepcjonista). Zainstalowano system Raspberry Pi OS Lite (64-bit), odblokowano szynę PCIe Gen 3 dla dysku NVMe, zainstalowano silnik Ollama i wystawiono jego API lokalnie na `0.0.0.0:11434`.
+* **[ARCHITEKTONICZNY DOWNGRADE (7B -> 3B)]** Wdrożono zmianę w architekturze ze względu na ograniczenia sprzętowe Maliny (brak GPU) i długi czas ewaluacji obszernego kontekstu narzędziowego (ponad 1m12s dla modelu 7B). Model Lokaja obniżono z `qwen2.5:7b-instruct` do `qwen2.5:3b-instruct` (ok. 2GB RAM) w celu zyskania akceptowalnych opóźnień niezbędnych dla planowanego systemu TTS.
+* **[POPRAWKI KODU]** W `core/llm_engine.py` wydłużono `timeout` dla biblioteki requests z 120 do 300 sekund dla bezproblemowego zimnego startu na RPi. W `main.py` oraz `data/settings.json` na sztywno zaaplikowano model 3B dla tieru `butler`.
+* **[STATUS BIEŻĄCY]** Połączenie PC -> Malina działa prawidłowo. Model 3B radzi sobie z formatowaniem narzędzi zgodnie ze schematem z `tier_butler.md`. Projekt można teraz uruchamiać z PC na czas kodowania, podczas gdy odpytuje on fizycznie Malinę w tle.
+
+## Poprzednia Aktywność (Sesja 2026-07-21 - Śledztwo Qwen 7B)
 
 * **[DIAGNOZA I NAPRAWA UKRYTEGO MONOLOGU]** Zdiagnozowano problem z modelem Qwen 7B, który halucynował odpowiedzi zamiast używać narzędzi i pomijał tag `<thought>`. Wynikało to z braku dopięcia reguł "Sandwichingu" w promptach oraz usunięcia `Stop Tokens` w opcjach API.
 * **[POPRAWKI W LLM_ENGINE]** Zmodyfikowano `core/llm_engine.py` dodając z powrotem `critical_rules` na sam koniec system promptu, z twardym zakazem odpowiadania bez monologu oraz naprawiono brakujące `stop: ["</tool_call>", "</tool_call >"]` w konfiguracji Ollamy.

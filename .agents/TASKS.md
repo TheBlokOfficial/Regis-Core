@@ -23,6 +23,10 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Zaawansowany Prompt Engineering: Wdrożenie checklist, pętli self-correction i 3-warstwowej ochrony przed halucynacjami Parallel Tool Calling (w tym Prompt Anchoring) dla Qwen 2.5.
 - [x] Stabilizacja logiki konsolidacji pamięci: Rozwiązanie State-History Conflict poprzez wzorzec Atomic Actions (`clear_queue_ids` w `save_note`) oraz całkowite zlikwidowanie halucynacji Qwen 2.5 poprzez Positive Framing i usunięcie konfliktów z promptów.
 - [x] Refaktoryzacja architektury (Droga A): Usunięcie natywnego function-callingu Ollamy w celu likwidacji angielskiego driftu, usunięcie systemu biurka na rzecz bezpośrednich rezultatów narzędzi, oraz kondensacja historii do pełnych tur (user+assistant) w celu wyleczenia amnezji LLM.
-- [ ] Stworzenie usługi telemetrycznej "Handoff" do przerzucania zadań z Maliny na PC (Boss Mode).
+- [x] Konfiguracja środowiska sprzętowego na Raspberry Pi 5 (OS, PCIe Gen 3, Ollama).
+- [x] Zmiana architektury Lokaja ze ślamazarnego modelu 7B na błyskawiczny 3B w celu minimalizacji opóźnień (Latency) dla nadchodzących systemów TTS.
+- [ ] Przeniesienie skryptów Pythona (Regis-Core) fizycznie na Raspberry Pi 5, tak aby działały jako natywna usługa systemowa (daemon) zamiast sesji PC.
+- [ ] Opracowanie mechanizmu routingu (Handoff) na większe modele (np. 14B) z użyciem stacji roboczej Desktop, przeznaczonego do złożonych logicznie zadań.
+- [ ] Szlifowanie promptów dla modelu 3B (lub ewaluacja zejścia do modelu 1.5B), by zmaksymalizować niezawodność najmniejszych instrukcji.
 - [ ] Integracja systemu WakeWord (oczekiwanie na dyskusję nt. wyboru narzędzia).
-- [ ] Integracja systemu Speech-To-Text.
+- [ ] Integracja systemu Speech-To-Text i Text-To-Speech.
