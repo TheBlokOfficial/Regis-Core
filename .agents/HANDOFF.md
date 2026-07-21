@@ -2,27 +2,40 @@
 
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
-## Ostatnia Aktywność
-* **[NOWE]** Wdrożono eksperymentalną, testową integrację z modelami chmurowymi z rodziny **Gemini API** firmy Google. Dodano klasę `GeminiEngine` zdolną do parsowania formatu OpenAI, omijając hacki wymagane dla lokalnej Ollamy.
-* Rozbudowano CLI o komendę `/provider`, dzięki czemu użytkownik może w każdej chwili "w locie" przełączyć się pomiędzy bezpiecznym lokalnym modelem (Qwen z Ollamy) a potężnym chmurowym bytem (np. `gemini-1.5-pro` lub najnowszymi modelami z rodziny 3.0/3.1 pobieranymi dynamicznie z API za pomocą klucza). Odpowiedzi na narzędzia zostały specjalnie "utwardzone" pod kątem restrykcyjnego parsera Google (dodanie `name` oraz `thought_signature`).
-* Zaimplementowano Pamięć Długoterminową (Notatnik). Zrefaktoryzowano prompt systemowy w `base_system.md`, eliminując sztywne zakazy nakładające "paranoję" na model. Przełączono model na podejście proaktywne: ma swobodę rozmawiania, dopytywania o kontekst i ZAWSZE sprawdza `read_notes` przed zadawaniem pytań w ciemno.
-* Dostosowano parametry LLM w `core/llm_engine.py`: Zwiększono karę za powtórzenia na ostrożne 1.05. Zastosowano dynamiczny `num_predict`.
-* Dodano komendę `/models` w `ui/cli.py` umożliwiającą szybkie testowanie (hot-swap) różnych modeli z Ollamy za pomocą interfejsu questionary podczas jednej sesji.
+## Ostatnia Aktywność (Sesja 2026-07-21)
+
+* **[ZMIANA MODELI]** Przełączono wszystkie referencje modeli z `qwen2.5:7b` i `qwen2.5:14b` na warianty **Instruct**: `qwen2.5:7b-instruct` i `qwen2.5:14b-instruct`. Zmiana dotyczy: `main.py`, `ui/cli.py`, `test_stream.py`, `docs/ARCHITECTURE.md`. Modele zostały pobrane przez `ollama pull`.
+* **[USUNIĘCIE TWO-PASS]** Całkowicie usunięto mechanizm "Two-Pass Generation" z `core/llm_engine.py`. Zamiast dwóch osobnych przebiegów (faza narzędziowa z temp=0.1 + faza odpowiedzi z temp=0.7), system ma teraz **jeden przebieg** z narzędziami zawsze dostępnymi i stałą temperaturą. Temperatura Regisa obniżona do **0.4** (z 0.7), Lokaja pozostała **0.1**. Usunięto parametr `tool_temperature` z konstruktora `LLMEngine`. Pętla ReAct działa nadal poprawnie.
+* **[PROMPTY W WYPUNKTOWANEJ LIŚCIE]** Przepisano wszystkie 3 pliki promptów (`base_system.md`, `tier_butler.md`, `tier_regis.md`) z formy akapitów prozatorskich na wypunktowane listy, co znacznie poprawia instruction following w modelach Instruct.
+* **[NAPRAWA PARSERA FALLBACK]** Naprawiono błąd w `_parse_fallback_tool_calls` w `llm_engine.py` - stary kod przerywał pętlę po znalezieniu pierwszego tool calla (`break`), ignorując kolejne. Teraz zbiera wszystkie tool calle i czyści z tekstu pełne JSON-y. Dodano czyszczenie znaczników `<tool_call>`, `</tool_call>` i artefaktu `icz`.
+* **[PRZEPROJEKTOWANIE CLI - STREAMING]** Całkowicie przepisano logikę streamowania w `ui/cli.py`. System ma teraz:
+  - Maszynę stanów do real-time parsowania tagów `<thought>...</thought>` token po tokenie (sliding window buffer)
+  - "Myśli agenta" wyświetlają się na bieżąco gdy model pisze wewnątrz `<thought>` 
+  - Gdy model nie używa narzędzi: brak sekcji "Myśli agenta", odpowiedź bezpośrednio jako "Regis:"
+  - Gdy model używa narzędzi: "Myśli agenta" → status narzędzia → "Regis:" w real-time (is_scratchpad=False)
+  - `final_response_callback` stripuje tagi `<thought>` z finalnego tekstu
+  - Bezpieczny parser klamer (zamiast regex) do czyszczenia JSON-ów ze scratchpada
+* **[MONOLOG <thought>]** Dodano do `base_system.md` instrukcję nakazującą modelowi pisać wewnętrzny monolog w tagach `<thought>...</thought>` przed każdą akcją lub odpowiedzią.
 
 ## Obecny Stan Projektu
-* Interfejs graficzny działa bez zarzutów. Konsola działa płynnie jako REPL, pozwalając na scrollowanie tysięcy linii w górę, zachowując zgrabne rozdzielenia wizualne pomiędzy narzędziami a promptami.
-* Model posiada genialny wewnętrzny monolog strumieniowany w locie kolorem szarym (`🧠 Myśli agenta:`).
-* Wdrożono rozwiązanie **Two-Pass Generation**.
-* Pamięć długoterminowa jest w 100% stabilna (dynamiczne czytanie z/do dysku przez JSON). Model 14b/32b skutecznie posługuje się nią by omijać halucynacje.
+
+* System działa w architekturze **single-pass ReAct** bez Two-Pass Generation.
+* Modele Instruct są pobrane i skonfigurowane.
+* CLI poprawnie parsuje `<thought>` tagi w locie i wyświetla monolog w szarym kolorze.
+* Fallback parser tool-callów jest naprawiony i obsługuje wiele narzędzi naraz.
+* Prompty są w formacie wypunktowanej listy (lepsze instruction following dla Instruct).
 
 ## Następne Kroki (Next Steps)
+
 1. **Handoff (Boss Mode):** System w tle na PC nasłuchujący żądań i delegowanie do modelu 14b, jeśli dostępne są zasoby VRAM.
 2. **System Audio:** Badania i integracja WakeWord (Porcupine / OpenWakeWord) oraz silnika STT (Whisper).
-3. **Optymalizacja Modelu 32b:** Model jest doskonały pod kątem logiki, ale wysyca VRAM na RTX 5070 i powoduje dramatyczne "zwisy" (aż 15 sekund na odzew) z uwagi na RAM offloading. Znaleźć złoty środek między inteligencją 14b a możliwościami dedykowanymi pod STT.
+3. **Przetestowanie monologu `<thought>` live** — warto obserwować czy model 7B (Lokaj) też solidnie używa tagów, czy trzeba mu mocniej to wymusić w `tier_butler.md`.
 
 ## Wiedza i Przemyślenia (Gotchas)
-* Pamiętaj o zachowaniu ascetycznego UX. Unikaj bogatych, krzykliwych kolorów (tylko zgaszona zieleń lub szarość). W konsoli odstawiliśmy skomplikowane grafiki by uzyskać potężny terminal REPL.
-* Małe modele 7B/14B są potężnie leniwe bez myślenia na głos. Muszą prowadzić monolog. Jeśli wdrożysz nową mechanikę i zniknie strumień myśli z terminala - przerwij i to napraw, bo jakość spadnie drastycznie!
-* Modele z rodziny Qwen mają gigantyczną bazę danych w wielu językach (np. rosyjski, chiński). Zbyt wysokie `repeat_penalty` (np. 1.15) zmusza je do ratowania się przed powtórzeniami ucieczką w inny język! Pilnuj tego parametru.
-* Nie dodawaj agentom instrukcji jak do głupków ("Zasada Krytyczna: zrób to czy tamto"). Daj im same narzędzia, stwórz przykład few-shot lub jasno napisz kontekst, a poradzą sobie genialnie.
+
+* Pamiętaj o zachowaniu ascetycznego UX. Unikaj bogatych, krzykliwych kolorów.
+* Modele Instruct używają natywnych znaczników `<tool_call>` / `</tool_call>` podczas generowania. Parser CLI i fallback parser w silniku muszą je filtrować — jest to już wdrożone.
+* Artefakt `icz` pojawia się jako resztka po Qwen Instruct podczas streamowania tool-callów. Jest filtrowany w `stream_update`.
+* Temperatura 0.4 dla Regisa (14B Instruct) daje dobre wyniki — modele Instruct nie potrzebują 0.7 do naturalnych odpowiedzi.
+* Małe modele 7B mogą nie pisać monologu `<thought>` tak chętnie jak 14B — jeśli nie, wzmocnij instrukcję w `tier_butler.md`.
 * Zawsze używaj operatora średnika `;` zamiast `&&` w terminalu podczas pracy, ponieważ OS to Windows/PowerShell.

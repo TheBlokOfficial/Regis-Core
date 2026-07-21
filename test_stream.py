@@ -4,7 +4,7 @@ import json
 OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
 
 payload = {
-    "model": "qwen2.5:14b",
+    "model": "qwen2.5:14b-instruct",
     "messages": [
         {"role": "user", "content": "Włącz lampkę w salonie"}
     ],

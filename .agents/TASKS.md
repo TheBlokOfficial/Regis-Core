@@ -12,6 +12,10 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Stabilizacja Tool Callingu: Wdrożenie Chain of Thought w Fazi Myśli i adaptacja architektoniczna pod modele 7B i 14B (afirmatywny prompt, array support).
 - [x] Zaprojektowanie i wdrożenie Pamięci Długoterminowej (Notatnika) dla agenta LLM.
 - [x] Wdrożenie testowej integracji Gemini API (silnik `GeminiEngine`) obsługującej pobieranie modeli z publicznego API i obsługę restrykcyjnego formatu function-callingu Google.
+- [x] Przejście na modele `qwen2.5:7b-instruct` i `qwen2.5:14b-instruct` (warianty Instruct lepsze do tool callingu i instruction following).
+- [x] Usunięcie Two-Pass Generation — uproszczenie do single-pass ReAct z jedną stałą temperaturą.
+- [x] Przebudowa promptów systemowych na format wypunktowanych list (lepsze instruction following dla Instruct).
+- [x] Wdrożenie wewnętrznego monologu `<thought>...</thought>` z real-time streamingiem w CLI.
 - [ ] Stworzenie usługi telemetrycznej "Handoff" do przerzucania zadań z Maliny na PC (Boss Mode).
 - [ ] Integracja systemu WakeWord (oczekiwanie na dyskusję nt. wyboru narzędzia).
 - [ ] Integracja systemu Speech-To-Text.

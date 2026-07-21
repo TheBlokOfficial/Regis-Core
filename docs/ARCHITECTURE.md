@@ -16,12 +16,12 @@ Aplikacja jest oparta o współpracę dwóch jednostek. Cała codzienna interakc
 - **Rola:** Podstawowa interakcja z domownikiem, proste narzędzia, sterowanie domem, szybki czas reakcji. Podproces Głównego Modelu.
 - **Sprzęt:** Raspberry Pi 5 (8GB RAM), oddelegowane w 100% wyłącznie do wnioskowania LLM.
 - **Zależności:** Home Assistant działa całkowicie odseparowany na własnym sprzęcie (Raspberry Pi 4), zwalniając pełne zasoby RPi 5.
-- **Wybór Modelu:** `qwen2.5:7b` w kwantyzacji Q4 (zajmuje ~4.7GB). Zostawia bezpieczny bufor w 8-gigowym RAM-ie na kontekst, a jednocześnie zapewnia gigantyczny skok logiczny względem malutkich modeli 3B.
+- **Wybór Modelu:** `qwen2.5:7b-instruct` w kwantyzacji Q4 (zajmuje ~4.7GB). Zostawia bezpieczny bufor w 8-gigowym RAM-ie na kontekst, a jednocześnie zapewnia gigantyczny skok logiczny względem malutkich modeli 3B.
 
 ### 2. Warstwa Druga: "Szef" (On-Demand)
 - **Rola:** Zaawansowana analityka, obsługa ciężkich zadań, posiadanie dostępu do szerszej puli skomplikowanych narzędzi.
 - **Sprzęt:** Stacje robocze Desktop PC z potężnymi układami graficznymi (przykładowo: RTX 5070 z 12GB VRAM).
-- **Wybór Modelu:** `qwen2.5:14b`. Waży na tyle mało, aby zmieścić się w całości w 12GB VRAM wraz z kontekstem. Zapewnia to absolutny brak offloadingu do RAM-u systemowego, a co za tym idzie - błyskawiczną prędkość wnioskowania.
+- **Wybór Modelu:** `qwen2.5:14b-instruct`. Waży na tyle mało, aby zmieścić się w całości w 12GB VRAM wraz z kontekstem. Zapewnia to absolutny brak offloadingu do RAM-u systemowego, a co za tym idzie - błyskawiczną prędkość wnioskowania.
 
 ### Mechanizm "Handoff"
 Gdy "Recepcjonista" na Raspberry Pi 5 napotka zbyt trudne zadanie, używa narzędzia (np. `call_boss()`). Regis-Core samodzielnie sprawdza w tle (usługa telemetryczna), które komputery PC są włączone i mają wolne zasoby VRAM. Następnie wysyła prośbę wraz z pełnym kontekstem konwersacji do instancji Ollamy na Desktopie, ładuje model "Szefa", odbiera wynik i zwalnia zasoby PC, aby nie przeszkadzać w graniu czy pracy na komputerze głównym.
