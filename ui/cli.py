@@ -70,6 +70,7 @@ def run_production_loop(llm_engine: LLMEngine, ha_client: HomeAssistantClient, d
                 
             if user_input.lower() == "/clear":
                 llm_engine.clear_history()
+                tools_registry.desk_apps.clear()
                 clear_screen()
                 print_production_header(llm_engine.model_name, llm_engine.tier, display_name, getattr(llm_engine, 'temperature', 0.5))
                 console.print("\n[dim]Pamięć podręczna modelu została wyczyszczona.[/dim]")
