@@ -221,14 +221,20 @@ class LLMEngine:
             if not desk_state_content:
                 desk_state_content = "Biurko jest puste."
                     
-            state_injection = {
-                "role": "system",
-                "content": f"<desk_state>\n{desk_state_content}\n</desk_state>"
-            }
+            state_injection = f"\n\n<desk_state>\n{desk_state_content}\n</desk_state>"
             
             # Bezpieczna kopia wiadomości, do której na sam dół dodajemy świeży stan
             current_messages = messages.copy()
-            current_messages.append(state_injection)
+            # Szukamy ostatniej wiadomości użytkownika, żeby dokleić do niej stan biurka
+            # (Qwen 2.5 ma problem, gdy wiadomość systemowa znajduje się na samym końcu konwersacji)
+            for i in range(len(current_messages) - 1, -1, -1):
+                if current_messages[i]["role"] == "user":
+                    current_messages[i] = current_messages[i].copy()
+                    current_messages[i]["content"] += state_injection
+                    break
+            else:
+                # Fallback, jeśli z jakiegoś powodu nie ma wiadomości usera
+                current_messages.append({"role": "user", "content": state_injection})
             
             payload = {
                 "model": self.model_name,
