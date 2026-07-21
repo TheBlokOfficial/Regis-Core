@@ -10,7 +10,8 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Wdrożenie funkcji narzędziowych dla Regis: Odczytywanie Czasu (`get_current_time`) oraz Pogody z sieci (`get_weather`).
 - [x] Uproszczenie architektury i wdrożenie Zasady Apple: rezygnacja z profili na rzecz sztywnych warstw (Recepcjonista i Szef).
 - [x] Stabilizacja Tool Callingu: Wdrożenie Chain of Thought w Fazi Myśli i adaptacja architektoniczna pod modele 7B i 14B (afirmatywny prompt, array support).
-- [x] Zaprojektowanie i wdrożenie Pamięci Długoterminowej (Notatnika) dla agenta LLM.
+- [x] Całkowite wycięcie starego systemu Notatnika (Pamięć Długoterminowa / Brudnopis) w celu zastąpienia go nowym rozwiązaniem.
+- [ ] Zaprojektowanie i wdrożenie nowej Pamięci Długoterminowej (np. wektorowej).
 - [x] Wdrożenie testowej integracji Gemini API (silnik `GeminiEngine`) obsługującej pobieranie modeli z publicznego API i obsługę restrykcyjnego formatu function-callingu Google.
 - [x] Przejście na modele `qwen2.5:7b-instruct` i `qwen2.5:14b-instruct` (warianty Instruct lepsze do tool callingu i instruction following).
 - [x] Usunięcie Two-Pass Generation — uproszczenie do single-pass ReAct z jedną stałą temperaturą.
