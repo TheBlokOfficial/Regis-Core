@@ -1,57 +1,54 @@
 # Agent Handoff & State Journal
 
-Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
-
-## Ostatnia Aktywność (Sesja 2026-07-22 — Restrukturyzacja Dokumentacji i Filozofia Projektu)
-
-### Co zostało zrobione
-Sesja była w 100% dokumentacyjna — żaden kod nie został zmieniony.
-
-* **[NOWY PLIK] `docs/MANIFEST.md`** — Stworzono od zera podczas dyskusji z użytkownikiem. Definiuje filozofię projektu, Złotą Zasadę ("Nie Przeszkadzaj"), nową architekturę dynamicznego dispatchera (Kontroler + Węzły Robocze + Satelity), Rejestr Encji z metadanymi przestrzennymi, decyzję o dwóch trybach pracy modelu (Baseline NLU vs Agent ReAct), Persona Contract oraz dług architektoniczny. To jest NAJWAŻNIEJSZY PLIK w projekcie.
-
-* **[NOWY PLIK] `docs/ONBOARDING.md`** — Pełna mapa kodu: opis każdego katalogu, pliku i ich roli, przepływ jednego polecenia przez wszystkie warstwy systemu (od CLI do Home Assistanta), docelowy model dystrybucji (pip extras), workflow deweloperski i lista miejsc z hardcode'owanymi adresami IP.
-
-* **[NOWY PLIK] `docs/AGENT_GUIDE.md`** — Przewodnik dla agentów AI pracujących nad projektem. Zawiera: hierarchię lektury, tabelę podjętych decyzji których nie należy ruszać, ostrzeżenie przed skażeniem kontekstu (context contamination), mechanizm Czystego Architectural Handoff (format wpisu DECYZJA_ARCHITEKTONICZNA w HANDOFF.md), prawa zapisu do dokumentów.
-
-* **[ZAKTUALIZOWANY] `.agents/AGENTS.md`** — Protokół startowy rozszerzony: agent musi teraz czytać `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` jako pierwsze (przed HANDOFF.md i TASKS.md). Sekcja filozofii zaktualizowana — MANIFEST.md jest najwyższym autorytetem, ARCHITECTURE.md jest starszym dokumentem.
-
-### Stan projektu
-* Wszystkie nowe pliki działają — są to dokumenty Markdown, nie wymagają uruchamiania.
-* Kod jest niezmieniony. Wszystkie poprzednie funkcje działają tak samo jak przed tą sesją.
-* Plik `walkthrough.md` NIE został zaktualizowany — zmiany tej sesji były czysto dokumentacyjne, nie architektoniczne w sensie kodu.
-
-### Kluczowe ustalenia z tej sesji (dla kolejnego agenta)
-1. **Nowa architektura (docelowa, niezaimplementowana):** Dynamiczny Dispatcher — Kontroler (singleton na RPi5) + Węzły Robocze (desktop, laptop) + Satelity (ESP32, desktop, terminal). Szczegóły w `docs/MANIFEST.md`.
-2. **Dwa tryby pracy modelu (rozstrzygnięte):** 1.5B = NLU parser (Structured Outputs), 14B = ReAct Agent. Przepaść jest świadomą decyzją — nie walczyć z nią.
-3. **Największy dług techniczny:** `apps/server/main.py` pełni rolę i Kontrolera i Węzła Roboczego. Musi być rozdzielone przed jakąkolwiek refaktoryzacją dystrybucji.
-4. **Hardcode'owane adresy IP:** Są w `core/llm_engine.py`, `core/remote_client.py`, `apps/terminal/main.py` i `data/settings.json`. Powinny być scentralizowane.
-5. **Protokół eskalacji:** Gdy agent roboczy natrafi na decyzję architektoniczną w zaśmieconym kontekście — zapisuje wpis `DECYZJA_ARCHITEKTONICZNA` w HANDOFF.md i kończy sesję. Nie decyduje sam.
-
-### Następne kroki (dla kolejnego agenta)
-Priorytety kodowe z TASKS.md:
-* TTS (Text-To-Speech) — następna warstwa po STT
-* WakeWord — czekamy na próbki audio użytkownika
-* Handoff/routing między węzłami — wymaga rozdzielenia Kontrolera od Węzła Roboczego
+Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze zastępuj jego zawartość nową wersją przed zakończeniem (zgodnie z protokołem w AGENTS.md). Nie dopisuj — zastępuj.
 
 ---
 
-## Poprzednia Aktywność (Sesja 2026-07-22 — Wdrożenie Scentralizowanego STT Whisper)
+## Ostatnia Aktywność (Sesja 2026-07-22 — Restrukturyzacja Dokumentacji i Architektury)
 
-* **[PROTOTYP STT]** Skonstruowano aplikację "Satelity", która służy do przechwytywania dźwięku (`sounddevice`) po stronie klienta PC (symulując fizyczny mikrofon).
-* **[ZCENTRALIZOWANY STT NA SERWERZE]** Satelita wysyła zarejestrowany plik `.wav` przez sieć, a cały ciężar przetwarzania dźwięku za pomocą modelu `faster-whisper` (rozmiar `small`) przejął główny serwer API. Model STT utrzymywany jest 24/7 w pamięci RAM.
-* **[WYDAJNOŚĆ]** Model `small` skutkuje opóźnieniem ~9 sekund na Malince. Docelowo rozważyć zejście na model `tiny` dla 1-2 sekund latencji.
+Ta sesja była w 100% dokumentacyjna. Żaden plik kodu nie został zmieniony.
 
-## Poprzednia Aktywność (Sesja 2026-07-22 — Konfiguracja NAS na RPi 5)
+### Co zostało zrobione
 
-* Skonfigurowano RPi 5 jako dysk sieciowy (NAS/Samba) z dyskiem NVMe. Zmapowano dyski sieciowe na Windowsie.
+**Nowe pliki dokumentacji:**
+- `docs/MANIFEST.md` — Manifest projektu. Definiuje filozofię, cele, architekturę (Dynamiczny Dispatcher, Persona Contract, Dwa Tryby Pracy) i rozstrzygnięte decyzje projektowe. **Najważniejszy plik w projekcie — czytaj jako pierwszy.**
+- `docs/ONBOARDING.md` — Mapa kodu. Opis każdego katalogu i pliku, przepływ danych od komendy użytkownika do zapalenia lampy, docelowy model dystrybucji (pyproject.toml + extras), aktualny workflow deweloperski.
+- `docs/AGENT_GUIDE.md` — Przewodnik dla agentów AI. Hierarchia lektury, protokół eskalacji decyzji architektonicznych, ostrzeżenie o skażeniu kontekstu (context contamination), mechanizm Architectural Decision Handoff, prawa zapisu do dokumentów, lista decyzji już podjętych.
 
-## Poprzednia Aktywność (Sesja 2026-07-22 — NLU Structured Outputs i Optymalizacja HA)
+**Zaktualizowane pliki:**
+- `.agents/AGENTS.md` — Procedura startowa teraz wymaga czytania MANIFEST.md i AGENT_GUIDE.md jako pierwszych plików (przed HANDOFF.md). Procedura zamykania sesji teraz nakazuje zastępowanie (nie dopisywanie) HANDOFF.md. Usunięto obowiązek aktualizacji walkthrough.md.
 
-* Przebudowano tier Butler na Structured Outputs (JSON Schema). Usunięto wąskie gardło GET all_states i pętli TCP. Wdrożono `requests.Session()`.
+### Kluczowe decyzje architektoniczne podjęte w tej sesji
 
-## Wiedza i Przemyślenia (Gotchas)
+1. **Dynamiczny Dispatcher zamiast statycznego Lokaj/Szef** — RPi5 jest Kontrolerem i węzłem fallback. Desktopy rejestrują się jako węzły robocze. Najlepszy dostępny węzeł dostaje ruch. Bezszwowa migracja kontekstu przy zmianie węzła.
 
-* Małe modele (7B) nie znoszą zakazów w próżni — użyj kontrastujących Few-Shot.
-* Qwen 2.5 natywnie wymusza parallel tool calling — Stop Tokens to absolutna konieczność.
-* Pamiętaj o ascetycznym UX. Unikaj jaskrawych kolorów.
-* Zawsze używaj `;` zamiast `&&` w PowerShell.
+2. **Trzy niezależne procesy:** `regis-controller` (singleton na RPi5), `regis-worker` (instalowany na dowolnym urządzeniu), `regis-satellite` (VAD + I/O, możliwie głupi klient).
+
+3. **Pipeline audio (rozstrzygnięte):** VAD na Satelicie → WakeWord na Węźle Roboczym (ESP32) lub lokalnie (desktop) → STT zawsze na Węźle Roboczym (standaryzacja jakości).
+
+4. **Dwa tryby Regisa (rozstrzygnięta decyzja produktowa):** Model 1.5B = deterministyczny parser NLU (Baseline). Model 14B = pełny agent ReAct (Agent). Przepaść między nimi jest akceptowalna i wynika z naturalnej korelacji użycia.
+
+5. **Rejestr Encji z metadanymi:** Satelity i Węzły rejestrują się w Kontrolerze z metadanymi (m.in. `room`). Kontroler używa `room` do Spatial Context Filtering — model dostaje tylko urządzenia z danego pokoju.
+
+6. **Protokół eskalacji decyzji architektonicznych:** Gdy agent roboczy natrafi na decyzję architektoniczną po długiej sesji kodowania (skażony kontekst), wyekstrahowuje problem do HANDOFF.md w formacie `DECYZJA_ARCHITEKTONICZNA` i kończy sesję. Użytkownik otwiera świeżą rozmowę do dyskusji.
+
+7. **Cykl życia dokumentów:** HANDOFF.md zastępowany co sesję (git przechowuje historię). TASKS.md rośnie, archiwizowany tylko na polecenie użytkownika.
+
+### Dług Architektoniczny (do implementacji w przyszłości — kolejność ma znaczenie)
+
+1. **[KRYTYCZNE] Rozdzielenie `apps/server/main.py`** na Kontroler i Węzeł Roboczy — to odblokuje wszystkie kolejne kroki.
+2. **Przeniesienie hardcode'owanych adresów IP** do `data/settings.json` (lista w `docs/ONBOARDING.md`).
+3. **Dodanie `pyproject.toml` z extras** (`[controller]`, `[worker]`, `[satellite]`).
+4. **Komendy `install-service`** dla Satelity i Węzła Roboczego.
+
+---
+
+## Aktualny Stan Kodu
+
+Kod jest niezmieniony względem poprzedniej sesji. Działa według opisów w HANDOFF.md z poprzedniej sesji (scentralizowane STT, pętla ReAct, Structured Outputs dla 1.5B). Dokumentacja jest teraz kompletna i aktualna.
+
+## Kroki Startowe dla Następnego Agenta
+
+1. Przeczytaj `docs/MANIFEST.md` — to nowy najważniejszy plik, zastępuje stary ARCHITECTURE.md jako główny autorytet.
+2. Sprawdź czy zadanie dotyczy kodu czy architektury. Jeśli kodu — przeczytaj `docs/ONBOARDING.md` i działaj. Jeśli architektury — wróć do rozmowy z użytkownikiem.
+3. Dług architektoniczny jest jasno opisany powyżej — nie zaczynaj od niego bez wyraźnego polecenia.

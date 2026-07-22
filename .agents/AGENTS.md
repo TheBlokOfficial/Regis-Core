@@ -23,10 +23,9 @@ Nie pytaj użytkownika o pozwolenie na przeczytanie tych plików, po prostu zró
 
 **[PROCEDURA ZAMYKANIA SESJI]**
 Kiedy użytkownik zasygnalizuje koniec pracy (hasła: "na dziś to wszystko", "kończymy", "zamykamy sesję", "koniec" itp.), obowiązuje Cię ZAKAZ zwykłego pożegnania się. Zamiast tego musisz natychmiast wykonać następującą sekwencję zadań:
-1. **Zaktualizuj plik `.agents/HANDOFF.md`**: Opisz co dokładnie zostało zrobione w tej sesji, obecny stan kodu (czy wszystko działa, czy są błędy) oraz precyzyjne kroki startowe dla następnego agenta.
-2. **Zaktualizuj plik `.agents/TASKS.md`**: Odznacz zrealizowane zadania lub zaktualizuj ich status.
-3. **Zaktualizuj plik `walkthrough.md` w głównym katalogu projektu**: Zrób to TYLKO wtedy, gdy wprowadzono istotne zmiany architektoniczne. Edytuj ten fizyczny plik w repozytorium, NIGDY nie twórz go w formie nowego Artefaktu Mózgu.
-4. **Zapisz zmiany w repozytorium**: Użyj narzędzia `run_command` w głównym katalogu projektu, aby odpalić kolejno: `git add . ; git commit -m "Auto-zapis sesji agenta: [podsumowanie]" ; git push`. (używaj średników w PowerShell, nie &&)
+1. **Zastąp zawartość `.agents/HANDOFF.md` nową treścią**: HANDOFF.md nie jest dziennikiem historycznym — jest zawsze aktualnym stanem projektu. Napisz NOWĄ wersję całego pliku (nie dopisuj na końcu). Zawrzyj: co zostało zrobione w tej sesji, aktualny stan kodu i precyzyjne kroki startowe dla następnego agenta. Stara wersja jest zachowana w historii git.
+2. **Zaktualizuj plik `.agents/TASKS.md`**: Odznacz zrealizowane zadania lub zaktualizuj ich status. Nigdy nie usuwaj zadań samodzielnie — tylko archiwizuj na polecenie użytkownika.
+3. **Zapisz zmiany w repozytorium**: Użyj narzędzia `run_command` w głównym katalogu projektu, aby odpalić kolejno: `git add . ; git commit -m "Auto-zapis sesji agenta: [podsumowanie]" ; git push`. (używaj średników w PowerShell, nie &&)
 Dopiero po pomyślnym wykonaniu tych kroków, poinformuj użytkownika wylistowując co dokładnie zaktualizowałeś, potwierdź wysłanie do repozytorium i pożegnaj się.
 
 **[FILOZOFIA I ARCHITEKTURA PROJEKTU]**

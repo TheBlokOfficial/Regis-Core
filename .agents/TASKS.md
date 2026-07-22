@@ -21,21 +21,21 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Wdrożenie wewnętrznego monologu `<thought>...</thought>` z real-time streamingiem w CLI.
 - [x] Refaktoryzacja pętli konwersacyjnej ReAct na architekturę Event-Driven ze StreamingTokenParserem.
 - [x] Zaawansowany Prompt Engineering: Wdrożenie checklist, pętli self-correction i 3-warstwowej ochrony przed halucynacjami Parallel Tool Calling (w tym Prompt Anchoring) dla Qwen 2.5.
-- [x] Stabilizacja logiki konsolidacji pamięci: Rozwiązanie State-History Conflict poprzez wzorzec Atomic Actions (`clear_queue_ids` w `save_note`) oraz całkowite zlikwidowanie halucynacji Qwen 2.5 poprzez Positive Framing i usunięcie konfliktów z promptów.
-- [x] Refaktoryzacja architektury (Droga A): Usunięcie natywnego function-callingu Ollamy w celu likwidacji angielskiego driftu, usunięcie systemu biurka na rzecz bezpośrednich rezultatów narzędzi, oraz kondensacja historii do pełnych tur (user+assistant) w celu wyleczenia amnezji LLM.
+- [x] Stabilizacja logiki konsolidacji pamięci: Rozwiązanie State-History Conflict poprzez wzorzec Atomic Actions oraz całkowite zlikwidowanie halucynacji Qwen 2.5 poprzez Positive Framing.
+- [x] Refaktoryzacja architektury (Droga A): Usunięcie natywnego function-callingu Ollamy, usunięcie systemu biurka, kondensacja historii do pełnych tur.
 - [x] Konfiguracja środowiska sprzętowego na Raspberry Pi 5 (OS, PCIe Gen 3, Ollama).
-- [x] Zmiana architektury Lokaja ze ślamazarnego modelu 7B na błyskawiczny 3B w celu minimalizacji opóźnień (Latency) dla nadchodzących systemów TTS.
-- [x] Przeniesienie skryptów Pythona (Regis-Core) fizycznie na Raspberry Pi 5, tak aby działały jako natywna usługa systemowa (daemon) zamiast sesji PC.
-- [ ] Opracowanie mechanizmu routingu (Handoff) na większe modele (np. 14B) z użyciem stacji roboczej Desktop, przeznaczonego do złożonych logicznie zadań.
-- [x] Szlifowanie promptów dla modelu 3B (lub ewaluacja zejścia do modelu 1.5B), by zmaksymalizować niezawodność najmniejszych instrukcji.
-- [x] Implementacja Wirtualnych Grup (virtual_groups.json), które omijają braki Home Assistanta w grupowaniu, odciążając model z parsowania dużych list ID.
+- [x] Zmiana architektury Lokaja ze ślamazarnego modelu 7B na błyskawiczny 3B.
+- [x] Przeniesienie skryptów Pythona (Regis-Core) fizycznie na Raspberry Pi 5 jako natywna usługa systemowa.
+- [x] Szlifowanie promptów dla modelu 3B (ewaluacja zejścia do modelu 1.5B).
+- [x] Implementacja Wirtualnych Grup (virtual_groups.json).
 - [x] Przebudowa kodu na architekturę Monorepo (`core/`, `apps/`, `integrations/`).
-- [x] Wdrożenie mechanizmu "Structured Outputs" (JSON Schema) dla modelu 1.5B (Butler) w celu wyeliminowania halucynacji NLU i zoptymalizowania komunikacji z HA (likwidacja wąskich gardeł GET i pętli TCP).
+- [x] Wdrożenie mechanizmu "Structured Outputs" (JSON Schema) dla modelu 1.5B (Butler).
 - [x] Konfiguracja Raspberry Pi 5 jako dysku sieciowego NAS (Samba) wykorzystującego dysk NVMe.
 - [ ] Integracja systemu WakeWord (oczekiwanie na paczki próbek użytkownika do modelu).
 - [/] Integracja systemu Speech-To-Text i Text-To-Speech (Zrealizowano scentralizowane STT na serwerze API).
-- [x] Restrukturyzacja dokumentacji projektu: stworzenie MANIFEST.md, ONBOARDING.md, AGENT_GUIDE.md oraz aktualizacja AGENTS.md.
-- [ ] Refaktoryzacja `apps/server/main.py`: rozdzielenie roli Kontrolera od Węzła Roboczego (największy dług techniczny — blokuje dystrybucję).
-- [ ] Scentralizowanie hardcode'owanych adresów IP do `data/settings.json`.
-- [ ] Wdrożenie architektury Dynamicznego Dispatchera (Kontroler + rejestr węzłów + migracja kontekstu) zgodnie z MANIFEST.md § 3.
-- [ ] Implementacja `pyproject.toml` z extras (controller/worker/satellite) po ustabilizowaniu architektury.
+- [x] Restrukturyzacja dokumentacji projektu: stworzenie MANIFEST.md, ONBOARDING.md, AGENT_GUIDE.md i aktualizacja protokołów w AGENTS.md.
+- [ ] [ARCH] Rozdzielenie `apps/server/main.py` na Kontroler i Węzeł Roboczy (krytyczny dług architektoniczny).
+- [ ] [ARCH] Przeniesienie hardcode'owanych adresów IP do `data/settings.json`.
+- [ ] [ARCH] Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`).
+- [ ] [ARCH] Implementacja Rejestru Encji (Satelity i Węzły rejestrują się w Kontrolerze z metadanymi).
+- [ ] [ARCH] Implementacja Spatial Context Filtering (filtrowanie urządzeń HA per pokój na podstawie metadanych Satelity).
