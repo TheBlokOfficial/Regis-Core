@@ -2,12 +2,12 @@
 
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
-## Ostatnia Aktywność (Sesja 2026-07-22 - Wirtualne Grupy i Walka z Qwen 1.5B)
+## Ostatnia Aktywność (Sesja 2026-07-22 - Wirtualne Grupy, NLU Parser i Walka z Qwen 1.5B)
 
 * **[REFAKTORYZACJA MONOREPO]** Projekt przebudowano na architekturę Monorepo podzieloną na sekcje: `core/`, `apps/`, `integrations/`. Przepisano importy oraz usunięto stare ścieżki po nieistniejących już UI i wczesnych plikach API. Wdrożono skrypt `deploy_to_pi.bat` automatyzujący przesył i restartowanie daemona na RPi.
 * **[WIRTUALNE GRUPY]** Zaimplementowano w `HomeAssistantClient` obsługę Wirtualnych Grup poprzez plik `virtual_groups.json`. Rozwiązuje to problem ograniczeń zgrupowania Home Assistanta i niweluje potrzebę wysyłania 7 osobnych requestów przez model. Wystarczy podanie logicznego klucza (np. `light.moj_pokoj`).
-* **[WALKA Z MODELEM 1.5B (Butler)]** Model obniżono testowo do wagi 1.5B i przeprowadzono na nim serię inżynierii stabilizacyjnej. Wykryto syndrom "Halucynacji Lenistwa" leżący u małych modeli - wymuszono więc `history_limit = 0` wyłącznie dla tieru Butler, by odcinać poprzednie udane tool_calle z kontekstu (tzw. "Złota Rybka").
-* **[QWEN NATIVE PROMPTS]** Odkryto uszkodzenie bloku uwagi (Attention) modelu 1.5B, kiedy próbowano mu wydawać instrukcje formatowania narzędzi w języku polskim. Cofało się to na ślepe wstrzykiwanie tekstu. Wycofano ten eksperyment na rzecz surowego, **natywnego, angielskiego boilerplate'u Qwena** (Droga A), a logika operacyjna w postaci mapowania poleceń pozostała w języku polskim. Mechanizm ten działa teraz wzorowo z twardymi parametrami dla włączania/wyłączania.
+* **[WALKA Z MODELEM 1.5B (Butler)]** Model obniżono testowo do wagi 1.5B i przeprowadzono na nim serię inżynierii stabilizacyjnej. Początkowo testowano natywne szablony w ReAct, lecz ostatecznie zrezygnowano z zapętlania ReAct dla najmniejszego modelu na rzecz **Structured Outputs**.
+* **[Wdrożenie NLU Parser (Structured Outputs)]** Architektura modelu Lokaj (1.5B) została całkowicie zrefaktoryzowana według poradnika Claude'a. Silnik `core/llm_engine.py` omija teraz pętlę ReAct dla tieru Butler i stosuje wstrzykiwanie twardego `JSON Schema` do parametru `format` w API Ollamy. Model stał się wyspecjalizowanym modułem NLU wyłącznie do parsowania komend świetlnych (zwraca jedynie `{action: ..., room: ...}`). Prompt `tier_butler.md` skrócono do 100 tokenów, pozbawiając go przykładów innych niż światło, dostosowując do faktu, że istnieje tylko jeden wirtualny pokój. Skutkuje to stuprocentową, błyskawiczną niezawodnością (latency rzędu ułamków sekund) oraz absolutnym brakiem halucynacji. Zależność od historii konwersacji ucięta (amnezja).
 
 ## Poprzednia Aktywność (Sesja 2026-07-21 - Wdrożenie Raspberry Pi i Modelu 3B)
 

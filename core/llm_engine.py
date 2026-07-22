@@ -70,7 +70,12 @@ class LLMEngine:
         except Exception as e:
             logging.warning(f"Błąd ładowania {tier_path}: {e}")
             
-        # Renderowanie narzędzi do tekstu (format Hermes/Qwen)
+        # Dla tieru butler (parser NLU) nie wstrzykujemy tagów <tools> ani reguł Sandwiching, 
+        # bo to czysty ekstraktor JSON bazujący na własnym prompcie.
+        if self.tier == "butler":
+            return tier_prompt
+
+        # Renderowanie narzędzi do tekstu (format Hermes/Qwen) dla innych tierów
         tools_text = render_tools_for_prompt(self.tier)
         
         # Twardy przypominacz zwalczający utratę instrukcji w modelu 7B (Sandwiching)
@@ -182,9 +187,18 @@ class LLMEngine:
 
         # Nowe zapytanie użytkownika
         now = datetime.datetime.now().strftime("%H:%M:%S")
-        messages.append({"role": "user", "content": f"[{now}] {prompt}"})
+        
+        # Dla NLU parsera (butler) przedrostek czasu może mylić model
+        if self.tier == "butler":
+            messages.append({"role": "user", "content": prompt})
+        else:
+            messages.append({"role": "user", "content": f"[{now}] {prompt}"})
         
         parser = StreamingTokenParser(on_thought_token, on_content_token)
+
+        # FAST PATH: Butler jako NLU (Structured Outputs)
+        if self.tier == "butler":
+            return self._generate_response_nlu(messages, prompt, tools_registry, on_tool_call, on_content_token)
 
         # Pętla ReAct
         max_iterations = 15
@@ -282,3 +296,73 @@ class LLMEngine:
                 raise LLMConnectionError(f"Nie udało się połączyć z usługą. {error_details}")
         
         return "Przerwano zapytanie. Przekroczono maksymalną liczbę wywołań narzędzi (timeout pętli ReAct)."
+
+    def _generate_response_nlu(self, messages: list[dict], original_prompt: str, tools_registry, on_tool_call: Any, on_content_token: Any) -> str:
+        """Szybka ścieżka generacji dla tieru 'butler'.
+        Używa Structured Outputs (JSON Schema), aby jednym zapytaniem wydobyć intencję.
+        Brak pętli ReAct, całkowicie deterministyczne wyjście.
+        """
+        payload = {
+            "model": self.model_name,
+            "messages": messages,
+            "stream": False,
+            "keep_alive": -1,
+            "format": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["light_on", "light_off", "unknown"]},
+                    "room": {"type": ["string", "null"]}
+                },
+                "required": ["action", "room"]
+            },
+            "options": {
+                "temperature": 0.0,
+                "num_predict": 40
+            }
+        }
+        
+        try:
+            response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            content = data.get("message", {}).get("content", "{}")
+            
+            try:
+                intent = json.loads(content)
+            except json.JSONDecodeError:
+                intent = {"action": "unknown"}
+                
+            action = intent.get("action", "unknown")
+            room = intent.get("room")
+            
+            if action == "unknown":
+                if on_content_token:
+                    on_content_token("Przepraszam, to polecenie wykracza poza moje uprawnienia (zarządzam tylko oświetleniem).")
+                return "Przepraszam, to polecenie wykracza poza moje uprawnienia (zarządzam tylko oświetleniem)."
+                
+            # Logika mapowania intencji na wywołanie Home Assistant
+            target_entity = f"light.{room}" if room and room not in ["pokój", "pokoju"] else "light.moj_pokoj"
+            
+            ha_action = None
+            if action == "light_on":
+                ha_action = "turn_on"
+            elif action == "light_off":
+                ha_action = "turn_off"
+                
+            if ha_action:
+                tool_args = {"action": ha_action, "entity_id": target_entity}
+                args_str = f"action='{ha_action}', entity_id='{target_entity}'"
+                    
+                log_text = f"> Lokaj (NLU) wywołuje: execute_ha_action({args_str})"
+                if on_tool_call:
+                    on_tool_call(log_text)
+                    
+                tools_registry.execute_tool("execute_ha_action", tool_args)
+                
+            if on_content_token:
+                on_content_token("Gotowe.")
+            return "Gotowe."
+            
+        except RequestException as e:
+            logging.error(f"Błąd NLU: {e}")
+            return "Błąd komunikacji z modułem NLU."
