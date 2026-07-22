@@ -2,7 +2,12 @@
 
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
-## Ostatnia Aktywność (Sesja 2026-07-22 - NLU Structured Outputs i Optymalizacja HA)
+## Ostatnia Aktywność (Sesja 2026-07-22 - Konfiguracja Dysku Sieciowego NAS na RPi 5)
+
+* **[INFRASTRUKTURA RPI 5]** Skonfigurowano Raspberry Pi 5 jako pełnoprawny dysk sieciowy (NAS) przy użyciu Samby. Udostępniono przestrzeń z szybkiego dysku NVMe (`/home/theblok/NAS`), zabezpieczając ją autoryzacją na użytkownika `theblok` (wymagane hasło), aby obejść restrykcje Insecure Guest Auth w systemie Windows.
+* **[ZARZĄDZANIE W WINDOWS]** Zmapowano dyski sieciowe na stacjach roboczych Windows z użyciem poświadczeń za pomocą wiersza poleceń (`net use`), zapewniając stabilne i szybkie połączenie do transferu plików, niezależnie od działania hostowanego na Malince modelu LLM.
+
+## Poprzednia Aktywność (Sesja 2026-07-22 - NLU Structured Outputs i Optymalizacja HA)
 
 * **[STRUCTURED OUTPUTS DLA BUTLERA]** Całkowicie przebudowano sposób działania modelu 1.5B (tier Butler). Zamiast pętli ReAct, korzysta on teraz ze wsparcia Ollamy dla JSON Schema (`format`). Prompt został ekstremalnie uproszczony do wyciągania intencji w oparciu o czysty JSON (akcje: `light_on`, `light_off`, `set_brightness`, `unknown` oraz wartości procentowe jasności). Pozwala to uniknąć 100% błędów logicznych, halucynacji oraz ucieczki z formatowania – wymusza generację pożądanej struktury po stronie serwera.
 * **[OPTYMALIZACJA WYDAJNOŚCI HA]** Znaleziono i usunięto ogromne wąskie gardło, w którym każde wywołanie światła poprzedzane było synchronicznym wywołaniem `get_all_states()` z HA (pobranie tysięcy linii JSON), a następnie pętlą wykonującą `turn_on` na każdej pojedynczej żarówce osobno z nowym połączeniem TLS. Zastąpiono to wdrożeniem obiektu `requests.Session()` oraz wysyłaniem do REST API HA całej tablicy `entity_id` w jednym zapytaniu POST, co zmniejszyło narzut sieci z 4-5 sekund do ułamków sekundy.
