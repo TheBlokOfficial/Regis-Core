@@ -81,22 +81,8 @@ class ToolsRegistry:
             return json.dumps({"error": f"Urządzenie o ID '{entity_id}' nie zostało znalezione."}, ensure_ascii=False)
 
     def _execute_ha_action(self, action: str, entity_id: str, parameters: dict[str, Any]) -> str:
-        try:
-            states = self.ha_client.get_all_states()
-        except Exception:
-            states = {}
-            
         if action not in ["turn_on", "turn_off", "toggle"]:
             return json.dumps({"error": f"Nieprawidłowa akcja: '{action}'. Dozwolone: 'turn_on', 'turn_off', 'toggle'. Użyj 'turn_on' do zmiany jasności/koloru."}, ensure_ascii=False)
-
-        if isinstance(entity_id, list):
-            invalid_ids = [eid for eid in entity_id if eid not in states]
-            if invalid_ids:
-                return json.dumps({"error": f"Nieistniejące entity_id: {invalid_ids}. Użyj najpierw narzędzia 'get_devices'."}, ensure_ascii=False)
-        elif isinstance(entity_id, str):
-            is_virtual = hasattr(self.ha_client, 'virtual_groups') and entity_id in self.ha_client.virtual_groups
-            if not is_virtual and entity_id not in states:
-                return json.dumps({"error": f"Nieistniejące entity_id: '{entity_id}'. Użyj najpierw narzędzia 'get_devices'."}, ensure_ascii=False)
                 
         success = self.ha_client.execute_action(action, entity_id, parameters)
         if success:

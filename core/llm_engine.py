@@ -310,14 +310,16 @@ class LLMEngine:
             "format": {
                 "type": "object",
                 "properties": {
-                    "action": {"type": "string", "enum": ["light_on", "light_off", "unknown"]},
-                    "room": {"type": ["string", "null"]}
+                    "action": {"type": "string", "enum": ["light_on", "light_off", "set_brightness", "unknown"]},
+                    "room": {"type": ["string", "null"]},
+                    "brightness_value": {"type": ["integer", "null"]},
+                    "brightness_direction": {"type": ["string", "null"], "enum": ["up", "down", None]}
                 },
-                "required": ["action", "room"]
+                "required": ["action", "room", "brightness_value", "brightness_direction"]
             },
             "options": {
                 "temperature": 0.0,
-                "num_predict": 40
+                "num_predict": 80
             }
         }
         
@@ -348,10 +350,24 @@ class LLMEngine:
                 ha_action = "turn_on"
             elif action == "light_off":
                 ha_action = "turn_off"
+            elif action == "set_brightness":
+                ha_action = "turn_on"
                 
             if ha_action:
-                tool_args = {"action": ha_action, "entity_id": target_entity}
+                tool_args = {"action": ha_action, "entity_id": target_entity, "parameters": {}}
                 args_str = f"action='{ha_action}', entity_id='{target_entity}'"
+                
+                if intent.get("brightness_value") is not None:
+                    tool_args["parameters"]["brightness_pct"] = intent["brightness_value"]
+                    args_str += f", brightness_pct={intent['brightness_value']}"
+                elif intent.get("brightness_direction") == "up":
+                    # Krok +20% (implementacja uproszczona jako step w HA)
+                    tool_args["parameters"]["brightness_step_pct"] = 20
+                    args_str += f", brightness_step_pct=20"
+                elif intent.get("brightness_direction") == "down":
+                    # Krok -20% 
+                    tool_args["parameters"]["brightness_step_pct"] = -20
+                    args_str += f", brightness_step_pct=-20"
                     
                 log_text = f"> Lokaj (NLU) wywołuje: execute_ha_action({args_str})"
                 if on_tool_call:

@@ -30,5 +30,6 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Szlifowanie promptów dla modelu 3B (lub ewaluacja zejścia do modelu 1.5B), by zmaksymalizować niezawodność najmniejszych instrukcji.
 - [x] Implementacja Wirtualnych Grup (virtual_groups.json), które omijają braki Home Assistanta w grupowaniu, odciążając model z parsowania dużych list ID.
 - [x] Przebudowa kodu na architekturę Monorepo (`core/`, `apps/`, `integrations/`).
+- [x] Wdrożenie mechanizmu "Structured Outputs" (JSON Schema) dla modelu 1.5B (Butler) w celu wyeliminowania halucynacji NLU i zoptymalizowania komunikacji z HA (likwidacja wąskich gardeł GET i pętli TCP).
 - [ ] Integracja systemu WakeWord (oczekiwanie na dyskusję nt. wyboru narzędzia).
 - [ ] Integracja systemu Speech-To-Text i Text-To-Speech.

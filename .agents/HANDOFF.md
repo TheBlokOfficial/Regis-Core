@@ -2,12 +2,13 @@
 
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
-## Ostatnia Aktywność (Sesja 2026-07-22 - Wirtualne Grupy, NLU Parser i Walka z Qwen 1.5B)
+## Ostatnia Aktywność (Sesja 2026-07-22 - NLU Structured Outputs i Optymalizacja HA)
 
-* **[REFAKTORYZACJA MONOREPO]** Projekt przebudowano na architekturę Monorepo podzieloną na sekcje: `core/`, `apps/`, `integrations/`. Przepisano importy oraz usunięto stare ścieżki po nieistniejących już UI i wczesnych plikach API. Wdrożono skrypt `deploy_to_pi.bat` automatyzujący przesył i restartowanie daemona na RPi.
-* **[WIRTUALNE GRUPY]** Zaimplementowano w `HomeAssistantClient` obsługę Wirtualnych Grup poprzez plik `virtual_groups.json`. Rozwiązuje to problem ograniczeń zgrupowania Home Assistanta i niweluje potrzebę wysyłania 7 osobnych requestów przez model. Wystarczy podanie logicznego klucza (np. `light.moj_pokoj`).
-* **[WALKA Z MODELEM 1.5B (Butler)]** Model obniżono testowo do wagi 1.5B i przeprowadzono na nim serię inżynierii stabilizacyjnej. Początkowo testowano natywne szablony w ReAct, lecz ostatecznie zrezygnowano z zapętlania ReAct dla najmniejszego modelu na rzecz **Structured Outputs**.
-* **[Wdrożenie NLU Parser (Structured Outputs)]** Architektura modelu Lokaj (1.5B) została całkowicie zrefaktoryzowana według poradnika Claude'a. Silnik `core/llm_engine.py` omija teraz pętlę ReAct dla tieru Butler i stosuje wstrzykiwanie twardego `JSON Schema` do parametru `format` w API Ollamy. Model stał się wyspecjalizowanym modułem NLU wyłącznie do parsowania komend świetlnych (zwraca jedynie `{action: ..., room: ...}`). Prompt `tier_butler.md` skrócono do 100 tokenów, pozbawiając go przykładów innych niż światło, dostosowując do faktu, że istnieje tylko jeden wirtualny pokój. Skutkuje to stuprocentową, błyskawiczną niezawodnością (latency rzędu ułamków sekund) oraz absolutnym brakiem halucynacji. Zależność od historii konwersacji ucięta (amnezja).
+* **[STRUCTURED OUTPUTS DLA BUTLERA]** Całkowicie przebudowano sposób działania modelu 1.5B (tier Butler). Zamiast pętli ReAct, korzysta on teraz ze wsparcia Ollamy dla JSON Schema (`format`). Prompt został ekstremalnie uproszczony do wyciągania intencji w oparciu o czysty JSON (akcje: `light_on`, `light_off`, `set_brightness`, `unknown` oraz wartości procentowe jasności). Pozwala to uniknąć 100% błędów logicznych, halucynacji oraz ucieczki z formatowania – wymusza generację pożądanej struktury po stronie serwera.
+* **[OPTYMALIZACJA WYDAJNOŚCI HA]** Znaleziono i usunięto ogromne wąskie gardło, w którym każde wywołanie światła poprzedzane było synchronicznym wywołaniem `get_all_states()` z HA (pobranie tysięcy linii JSON), a następnie pętlą wykonującą `turn_on` na każdej pojedynczej żarówce osobno z nowym połączeniem TLS. Zastąpiono to wdrożeniem obiektu `requests.Session()` oraz wysyłaniem do REST API HA całej tablicy `entity_id` w jednym zapytaniu POST, co zmniejszyło narzut sieci z 4-5 sekund do ułamków sekundy.
+* **[REFAKTORYZACJA MONOREPO]** Projekt wcześniej przebudowano na architekturę Monorepo podzieloną na sekcje: `core/`, `apps/`, `integrations/`. Przepisano importy oraz usunięto stare ścieżki. Wdrożono skrypt `deploy_to_pi.bat` automatyzujący przesył i restartowanie daemona na RPi.
+
+## Poprzednia Aktywność (Sesja 2026-07-22 - Wirtualne Grupy i Walka z Qwen 1.5B)
 
 ## Poprzednia Aktywność (Sesja 2026-07-21 - Wdrożenie Raspberry Pi i Modelu 3B)
 

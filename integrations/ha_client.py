@@ -22,6 +22,10 @@ class HomeAssistantClient:
         self.token = token
         self.aliases = aliases or {}
         self.virtual_groups = virtual_groups or {}
+        
+        self.session = requests.Session()
+        self.session.headers.update(self._get_headers())
+        
         logging.info(f"Zainicjalizowano HomeAssistantClient dla URL: {self.url}")
 
     def _get_headers(self) -> dict[str, str]:
@@ -42,7 +46,7 @@ class HomeAssistantClient:
         url = f"{self.url}/api/states"
         
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            response = self.session.get(url, timeout=10)
             response.raise_for_status()
             data = response.json()
             
@@ -88,18 +92,12 @@ class HomeAssistantClient:
         if isinstance(entity_id, str) and entity_id in self.virtual_groups:
             entity_id = self.virtual_groups[entity_id]
             
-        if isinstance(entity_id, list):
-            all_success = True
-            for single_id in entity_id:
-                if not self.execute_action(action, single_id, parameters):
-                    all_success = False
-            return all_success
-            
-        if not isinstance(entity_id, str):
+        if not isinstance(entity_id, (str, list)):
             logging.warning("[HA CLIENT] Oczekiwano stringa lub listy jako entity_id.")
             return False
             
-        domain = entity_id.split(".")[0]
+        # HA obsługuje listę entity_id domyślnie, nie trzeba robić pętli!
+        domain = entity_id[0].split(".")[0] if isinstance(entity_id, list) else entity_id.split(".")[0]
         
         if action == "turn_on":
             service = "turn_on"
@@ -116,7 +114,7 @@ class HomeAssistantClient:
             payload_dict.update(parameters)
             
         try:
-            response = requests.post(url, json=payload_dict, headers=self._get_headers(), timeout=10)
+            response = self.session.post(url, json=payload_dict, timeout=10)
             response.raise_for_status()
             logging.debug(f"[HA CLIENT] Pomyślnie wysłano akcję {service} dla {entity_id}.")
             return True
