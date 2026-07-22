@@ -60,11 +60,9 @@ class LLMEngine:
         natywnym dla Qwen 2.5 (tagi <tools>).
         """
         import os
-        base_path = os.path.join("data", "prompts", "base_system.md")
         tier_path = os.path.join("data", "prompts", f"tier_{self.tier}.md")
         
         tier_prompt = "Jesteś asystentem domowym."
-        base_prompt = "Wykonujesz polecenia."
         
         try:
             with open(tier_path, "r", encoding="utf-8") as f:
@@ -72,12 +70,6 @@ class LLMEngine:
         except Exception as e:
             logging.warning(f"Błąd ładowania {tier_path}: {e}")
             
-        try:
-            with open(base_path, "r", encoding="utf-8") as f:
-                base_prompt = f.read().strip()
-        except Exception as e:
-            logging.warning(f"Błąd ładowania {base_path}: {e}")
-        
         # Renderowanie narzędzi do tekstu (format Hermes/Qwen)
         tools_text = render_tools_for_prompt(self.tier)
         
@@ -89,7 +81,7 @@ class LLMEngine:
             "nie pobrałeś odpowiednim narzędziem z bloku <tools>."
         )
         
-        return f"{tier_prompt}\n\n{tools_text}\n\n{base_prompt}\n\n{critical_rules}"
+        return f"{tier_prompt}\n\n{tools_text}\n\n{critical_rules}"
 
     def clear_history(self) -> None:
         """Czyszczenie historii konwersacji."""
@@ -207,6 +199,7 @@ class LLMEngine:
                 "model": self.model_name,
                 "messages": messages,
                 "stream": True,
+                "keep_alive": -1,
                 "options": {
                     "temperature": self.temperature,
                     "num_ctx": 8192,
@@ -276,7 +269,9 @@ class LLMEngine:
                     })
 
                     # Przycinanie historii (po pełnych turach, nie krokach ReAct)
-                    if len(self.history) > self.history_limit:
+                    if self.history_limit <= 0:
+                        self.history = []
+                    elif len(self.history) > self.history_limit:
                         self.history = self.history[-self.history_limit:]
 
                     return response_text

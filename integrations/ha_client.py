@@ -9,17 +9,19 @@ from core.exceptions import HomeAssistantConnectionError
 class HomeAssistantClient:
     """Klient zarządzający komunikacją z fizycznym serwerem Home Assistant REST API."""
 
-    def __init__(self, url: str, token: str, aliases: dict[str, str] = None):
+    def __init__(self, url: str, token: str, aliases: dict[str, str] = None, virtual_groups: dict[str, list[str]] = None):
         """Inicjalizuje klienta HA.
         
         Args:
             url (str): Adres URL serwera Home Assistanta.
             token (str): Długoterminowy token dostępu z HA.
             aliases (dict[str, str], optional): Słownik mapujący skomplikowane nazwy encji na przyjazne.
+            virtual_groups (dict[str, list[str]], optional): Mapowanie wirtualnych grup na listy ID.
         """
         self.url = url.rstrip("/")
         self.token = token
         self.aliases = aliases or {}
+        self.virtual_groups = virtual_groups or {}
         logging.info(f"Zainicjalizowano HomeAssistantClient dla URL: {self.url}")
 
     def _get_headers(self) -> dict[str, str]:
@@ -82,6 +84,9 @@ class HomeAssistantClient:
         """
         if parameters is None:
             parameters = {}
+            
+        if isinstance(entity_id, str) and entity_id in self.virtual_groups:
+            entity_id = self.virtual_groups[entity_id]
             
         if isinstance(entity_id, list):
             all_success = True

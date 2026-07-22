@@ -94,7 +94,8 @@ class ToolsRegistry:
             if invalid_ids:
                 return json.dumps({"error": f"Nieistniejące entity_id: {invalid_ids}. Użyj najpierw narzędzia 'get_devices'."}, ensure_ascii=False)
         elif isinstance(entity_id, str):
-            if entity_id not in states:
+            is_virtual = hasattr(self.ha_client, 'virtual_groups') and entity_id in self.ha_client.virtual_groups
+            if not is_virtual and entity_id not in states:
                 return json.dumps({"error": f"Nieistniejące entity_id: '{entity_id}'. Użyj najpierw narzędzia 'get_devices'."}, ensure_ascii=False)
                 
         success = self.ha_client.execute_action(action, entity_id, parameters)

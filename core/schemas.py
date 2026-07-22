@@ -123,22 +123,18 @@ def get_tools_for_tier(tier: str) -> list[dict]:
 def render_tools_for_prompt(tier: str) -> str:
     """Renderuje schematy narzędzi do formatu tekstowego kompatybilnego z Hermes/Qwen.
     
-    Zamiast wysyłać pole 'tools' do API Ollamy (co powoduje kolizję z natywnym
-    blokiem instrukcji), wstrzykujemy opisy narzędzi bezpośrednio do system promptu
-    w formacie natywnym dla treningu Qwen 2.5 (tagi <tools>).
+    Wymagany jest DOKŁADNY ANGIELSKI TEKST, na którym Qwen 2.5 był fine-tune'owany.
+    Tłumaczenie go na polski psuje mechanizm attention dla najmniejszych modeli!
     """
     tools = get_tools_for_tier(tier)
     tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
     
-    return f"""## Dostępne Narzędzia
-
-Masz do dyspozycji narzędzia opisane poniżej w bloku `<tools>`. Aby użyć narzędzia, wygeneruj wywołanie w tagach:
-<tool_call>
-{{"name": "nazwa_narzędzia", "arguments": {{"parametr": "wartość"}}}}
-</tool_call>
-
-W jednej iteracji używaj dokładnie jednego narzędzia. Po wywołaniu otrzymasz wynik i możesz kontynuować.
-
+    return f"""# Tools
+You may call one or more functions to assist with the user query. You are provided with function signatures within <tools></tools> XML tags:
 <tools>
 {tools_json}
-</tools>"""
+</tools>
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>"""

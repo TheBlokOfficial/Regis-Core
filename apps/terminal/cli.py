@@ -235,7 +235,8 @@ def run_main_menu():
         "Wybierz akcję:",
         choices=[
             questionary.Separator(" "),
-            questionary.Choice(title="Uruchom system Regis", value="prod"),
+            questionary.Choice(title="Uruchom system Regis (Lokalnie)", value="prod"),
+            questionary.Choice(title="Połącz z serwerem Malinki (Zdalnie)", value="remote"),
             questionary.Separator(" "),
             questionary.Choice(title="Wyjście", value="exit")
         ],
@@ -243,3 +244,100 @@ def run_main_menu():
     ).ask()
     
     return mode_choice
+
+def run_remote_loop(client):
+    clear_screen()
+    print_production_header(client.model_name, client.tier, "Zdalny Klient", client.temperature)
+    
+    while True:
+        try:
+            now_input = datetime.datetime.now().strftime("%H:%M:%S")
+            user_input = console.input(f"[dim green][{now_input}][/dim green] [bold white]Ty:[/bold white] ")
+            if user_input.lower() == "/exit":
+                break
+                
+            if user_input.lower() == "/help":
+                console.print("\n[bold white]Dostępne komendy:[/bold white]")
+                console.print("[dim]/help[/dim] - [dim]Wyświetla tę listę komend[/dim]")
+                console.print("[dim]/exit[/dim] - [dim]Kończy działanie programu[/dim]")
+                console.print("[dim]/clear[/dim] - [dim]Czyści historię na zdalnym serwerze[/dim]\n")
+                console.input("[dim]Naciśnij Enter, aby kontynuować...[/dim]")
+                clear_screen()
+                print_production_header(client.model_name, client.tier, "Zdalny Klient", client.temperature)
+                continue
+                
+            if user_input.lower() == "/clear":
+                client.clear_history()
+                clear_screen()
+                print_production_header(client.model_name, client.tier, "Zdalny Klient", client.temperature)
+                console.print("\n[dim]Pamięć podręczna na serwerze została wyczyszczona.[/dim]")
+                continue
+                
+            if not user_input.strip():
+                continue
+                
+            console.print("")
+                
+            _first_thought = True
+            _first_content = True
+            
+            def on_thought_token(chunk):
+                nonlocal _first_thought, _first_content
+                if _first_thought:
+                    if not _first_content:
+                        print()
+                        print()
+                        _first_content = True
+                    ts_now = datetime.datetime.now().strftime("%H:%M:%S")
+                    console.print(f"[{ts_now}] ", style="dim green", end="", highlight=False)
+                    console.print("Myśli agenta: ", style="dim", end="", highlight=False)
+                    _first_thought = False
+                console.print(chunk, style="dim", end="", highlight=False, markup=False)
+
+            def on_content_token(chunk):
+                nonlocal _first_content, _first_thought
+                if _first_content:
+                    if not chunk.strip():
+                        return
+                    if not _first_thought:
+                        print()
+                        print()
+                        _first_thought = True 
+                    ts_now = datetime.datetime.now().strftime("%H:%M:%S")
+                    console.print(f"[{ts_now}] ", style="dim green", end="", highlight=False)
+                    console.print("Regis: ", style="bold white", end="", highlight=False)
+                    _first_content = False
+                print(chunk, end="", flush=True)
+
+            def on_tool_call(msg_text):
+                nonlocal _first_thought, _first_content
+                if not _first_thought or not _first_content:
+                    print()
+                    if not _first_thought:
+                        print()
+                    _first_thought = True
+                    _first_content = True
+                ts_now = datetime.datetime.now().strftime("%H:%M:%S")
+                console.print(f"[{ts_now}] ", style="dim green", end="", highlight=False)
+                console.print(msg_text, style="dim", highlight=False, markup=False)
+
+            try:
+                response_text = client.generate_response(
+                    user_input, 
+                    None,  # tools_registry is handled by the server
+                    on_tool_call=on_tool_call, 
+                    on_thought_token=on_thought_token, 
+                    on_content_token=on_content_token
+                )
+            except LLMConnectionError as e:
+                console.print(f"\n[red]Błąd systemu (Połączenie): {e}[/red]", highlight=False)
+                continue
+            
+            if not _first_content or not _first_thought:
+                print()
+                console.print("")
+                
+        except KeyboardInterrupt:
+            console.print("\n[dim]Zamykam system Regis.[/dim]")
+            break
+

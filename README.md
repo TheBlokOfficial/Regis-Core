@@ -11,24 +11,21 @@ Projekt Regis-Core to centralny serwer prywatnego asystenta głosowego (LLM-base
 
 ## Architektura i działanie
 
-System korzysta z założeń Czystej Architektury (Clean Architecture). Posiada centralny moduł Orchestratora (`main.py`), odseparowaną warstwę UI w terminalu (`ui/cli.py`) oraz hermetyczną logikę wnioskowania LLM i parsowania akcji (`core/`). Komunikacja odbywa się przez stabilne połączenia (`requests`), a błędy środowiskowe obsługiwane są za pomocą niestandardowych wyjątków.  
-Zwrócony przez model ciąg znaków jest walidowany, a następnie w strukturze `ActionResult` wysyłany jako fizyczna akcja do serwera HA.
-
-## Wymagania systemowe
-
-- Python 3.10+
-- Skonfigurowany i działający serwer Ollama.
-- Zależności projektowe:
-  ```bash
-  pip install -r requirements.txt
-  ```
+System korzysta z założeń architektury Monorepo. Główny rdzeń logiki (komunikacja z Ollamą, promptowanie, narzędzia) znajduje się w katalogu `core/`, a zewnetrzne integracje w `integrations/`. 
+Rzeczywiste programy uruchamiane przez użytkownika (punkty wejściowe) zostały rozdzielone na odrębne aplikacje w katalogu `apps/`:
+- `server`: demon REST API dla Maliny
+- `terminal`: okienkowy interfejs CLI
+- `satellite`: usługa audio
+- `boss_node`: węzeł odciążający na GPU
 
 ## Uruchamianie
 
-Głównym punktem wejściowym całego systemu jest plik:
+System składa się z wielu aplikacji, dlatego zawsze uruchamiamy je z poziomu głównego katalogu (root), podając ścieżkę do modułu:
 ```bash
-python main.py
+python -m apps.terminal.main  # Uruchamia klienta terminalowego
+python -m apps.server.main    # Uruchamia serwer API (FastAPI)
 ```
+Dla wygody na Windowsie przygotowano gotowe pliki `.bat` (np. `run_terminal.bat`).
 
 ## Testowanie (Środowisko Deweloperskie)
 

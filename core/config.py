@@ -54,3 +54,17 @@ def load_aliases() -> dict[str, str]:
         except json.JSONDecodeError:
             return {}
 
+def load_virtual_groups() -> dict[str, list[str]]:
+    """Ładuje wirtualne grupy urządzeń z pliku konfiguracyjnego.
+    
+    Returns:
+        dict[str, list[str]]: Słownik grup, np. {"light.moj_pokoj": ["light.id1", "light.id2"]}
+    """
+    groups_file = os.path.join(DATA_DIR, "virtual_groups.json")
+    if not os.path.exists(groups_file):
+        return {}
+    with open(groups_file, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}

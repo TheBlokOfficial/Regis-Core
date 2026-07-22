@@ -3,7 +3,7 @@ import logging
 from core import config
 from core.llm_engine import LLMEngine
 from integrations.ha_client import HomeAssistantClient
-from ui import cli
+from apps.terminal import cli
 
 def setup_logging():
     log_file = os.path.join(config.DATA_DIR, "regis.log")
@@ -74,6 +74,12 @@ def main():
             )
             
             cli.run_production_loop(llm_engine, ha_client, display_name)
+            
+        elif mode_choice == "remote":
+            from core.remote_client import RemoteClient
+            client = RemoteClient(base_url="http://192.168.0.119:8000")
+            cli.run_remote_loop(client)
+
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,15 @@
+[Unit]
+Description=Regis-Core AI Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=theblok
+WorkingDirectory=/home/theblok/regis-core
+ExecStart=/home/theblok/regis-core/.venv/bin/uvicorn apps.server.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
