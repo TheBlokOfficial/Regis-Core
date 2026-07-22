@@ -34,3 +34,8 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Konfiguracja Raspberry Pi 5 jako dysku sieciowego NAS (Samba) wykorzystującego dysk NVMe.
 - [ ] Integracja systemu WakeWord (oczekiwanie na paczki próbek użytkownika do modelu).
 - [/] Integracja systemu Speech-To-Text i Text-To-Speech (Zrealizowano scentralizowane STT na serwerze API).
+- [x] Restrukturyzacja dokumentacji projektu: stworzenie MANIFEST.md, ONBOARDING.md, AGENT_GUIDE.md oraz aktualizacja AGENTS.md.
+- [ ] Refaktoryzacja `apps/server/main.py`: rozdzielenie roli Kontrolera od Węzła Roboczego (największy dług techniczny — blokuje dystrybucję).
+- [ ] Scentralizowanie hardcode'owanych adresów IP do `data/settings.json`.
+- [ ] Wdrożenie architektury Dynamicznego Dispatchera (Kontroler + rejestr węzłów + migracja kontekstu) zgodnie z MANIFEST.md § 3.
+- [ ] Implementacja `pyproject.toml` z extras (controller/worker/satellite) po ustabilizowaniu architektury.

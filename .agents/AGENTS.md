@@ -14,7 +14,12 @@ Poniższe wytyczne stanowią zbiór dobrych praktyk wypracowanych podczas refakt
 ## Protokoły Pracy Agenta (Regis-Core)
 
 **[PROCEDURA STARTOWA - OBOWIĄZKOWA]**
-Zanim rozpoczniesz realizację pierwszego polecenia użytkownika w nowej sesji, MASZ OBOWIĄZEK w pierwszej kolejności użyć narzędzi do czytania plików w tle, aby zapoznać się z zawartością plików: `.agents/HANDOFF.md` oraz `.agents/TASKS.md`. Musisz zorientować się w obecnym stanie projektu i kontynuować pracę w miejscu, w którym zakończył ją poprzedni agent. Nie pytaj użytkownika o pozwolenie na przeczytanie tych plików, po prostu zrób to cicho w tle.
+Zanim rozpoczniesz realizację pierwszego polecenia użytkownika w nowej sesji, MASZ OBOWIĄZEK w pierwszej kolejności użyć narzędzi do czytania plików w tle, aby zapoznać się z plikami w następującej kolejności:
+1. **`docs/MANIFEST.md`** — NAJWAŻNIEJSZY PLIK. Definiuje filozofię, cele i rozstrzygnięte decyzje projektowe. Twoje decyzje MUSZĄ być z nim zgodne.
+2. **`docs/AGENT_GUIDE.md`** — Przewodnik po tym jak pracować w tym projekcie. Zawiera listę decyzji do nie ruszania i typowych błędów agentów.
+3. **`.agents/HANDOFF.md`** — Stan projektu po ostatniej sesji.
+4. **`.agents/TASKS.md`** — Lista aktywnych zadań.
+Nie pytaj użytkownika o pozwolenie na przeczytanie tych plików, po prostu zrób to cicho w tle.
 
 **[PROCEDURA ZAMYKANIA SESJI]**
 Kiedy użytkownik zasygnalizuje koniec pracy (hasła: "na dziś to wszystko", "kończymy", "zamykamy sesję", "koniec" itp.), obowiązuje Cię ZAKAZ zwykłego pożegnania się. Zamiast tego musisz natychmiast wykonać następującą sekwencję zadań:
@@ -25,4 +30,4 @@ Kiedy użytkownik zasygnalizuje koniec pracy (hasła: "na dziś to wszystko", "k
 Dopiero po pomyślnym wykonaniu tych kroków, poinformuj użytkownika wylistowując co dokładnie zaktualizowałeś, potwierdź wysłanie do repozytorium i pożegnaj się.
 
 **[FILOZOFIA I ARCHITEKTURA PROJEKTU]**
-Bezwzględnie zapoznaj się z plikiem `docs/ARCHITECTURE.md`, który zawiera kluczowe założenia projektowe, specyfikację sprzętową oraz docelowe modele. Te założenia muszą przyświecać każdej Twojej decyzji programistycznej.
+Bezwzględnie zapoznaj się z plikiem `docs/MANIFEST.md` (najwyższy autorytet) oraz `docs/AGENT_GUIDE.md` (praktyczne wytyczne dla agentów). Te dokumenty muszą przyświecać każdej Twojej decyzji programistycznej. Plik `docs/ARCHITECTURE.md` jest starszym dokumentem — w przypadku sprzeczności, `MANIFEST.md` ma pierwszeństwo.
