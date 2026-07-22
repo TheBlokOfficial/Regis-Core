@@ -2,7 +2,14 @@
 
 Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go na starcie sesji i zawsze aktualizuj przed jej zakończeniem (zgodnie z protokołem w AGENTS.md).
 
-## Ostatnia Aktywność (Sesja 2026-07-22 - Konfiguracja Dysku Sieciowego NAS na RPi 5)
+## Ostatnia Aktywność (Sesja 2026-07-22 - Wdrożenie Scentralizowanego STT Whisper)
+
+* **[PROTOTYP STT]** Skonstruowano aplikację "Satelity", która służy do przechwytywania dźwięku (`sounddevice`) po stronie klienta PC (symulując fizyczny mikrofon).
+* **[ZCENTRALIZOWANY STT NA SERWERZE]** Zdecydowano się na architekturę "Cienkiego Klienta". Satelita wysyła jedynie zarejestrowany na żywo plik `.wav` przez sieć, a cały ciężar przetwarzania dźwięku za pomocą modelu `faster-whisper` (rozmiar `small`) przejął główny serwer API (Raspberry Pi). Model STT utrzymywany jest 24/7 w pamięci RAM obok modelu językowego.
+* **[WYDAJNOŚĆ I WNIOSKI]** Model `small` skutkuje opóźnieniem Input-Lagu na Malince wynoszącym ~9 sekund. Jest celny, ale docelowo trzeba będzie rozważyć zejście na model `tiny`, by uzyskać natychmiastową responsywność asystenta (1-2 sekundy).
+* **[KROKI STARTOWE DLA AGENTA]** Oczekujemy na wygenerowanie się 10 000 próbek dźwiękowych użytkownika w celu wdrożenia modelu WakeWord (Porcupine / OpenWakeWord). Kolejnym zadaniem priorytetowym po stronie kodu jest teraz implementacja warstwy Text-To-Speech (TTS), skoro system wejściowy STT stabilnie i bezproblemowo przepycha polecenia do Głównego Serwera.
+
+## Poprzednia Aktywność (Sesja 2026-07-22 - Konfiguracja Dysku Sieciowego NAS na RPi 5)
 
 * **[INFRASTRUKTURA RPI 5]** Skonfigurowano Raspberry Pi 5 jako pełnoprawny dysk sieciowy (NAS) przy użyciu Samby. Udostępniono przestrzeń z szybkiego dysku NVMe (`/home/theblok/NAS`), zabezpieczając ją autoryzacją na użytkownika `theblok` (wymagane hasło), aby obejść restrykcje Insecure Guest Auth w systemie Windows.
 * **[ZARZĄDZANIE W WINDOWS]** Zmapowano dyski sieciowe na stacjach roboczych Windows z użyciem poświadczeń za pomocą wiersza poleceń (`net use`), zapewniając stabilne i szybkie połączenie do transferu plików, niezależnie od działania hostowanego na Malince modelu LLM.

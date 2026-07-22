@@ -32,5 +32,5 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Przebudowa kodu na architekturę Monorepo (`core/`, `apps/`, `integrations/`).
 - [x] Wdrożenie mechanizmu "Structured Outputs" (JSON Schema) dla modelu 1.5B (Butler) w celu wyeliminowania halucynacji NLU i zoptymalizowania komunikacji z HA (likwidacja wąskich gardeł GET i pętli TCP).
 - [x] Konfiguracja Raspberry Pi 5 jako dysku sieciowego NAS (Samba) wykorzystującego dysk NVMe.
-- [ ] Integracja systemu WakeWord (oczekiwanie na dyskusję nt. wyboru narzędzia).
-- [ ] Integracja systemu Speech-To-Text i Text-To-Speech.
+- [ ] Integracja systemu WakeWord (oczekiwanie na paczki próbek użytkownika do modelu).
+- [/] Integracja systemu Speech-To-Text i Text-To-Speech (Zrealizowano scentralizowane STT na serwerze API).

@@ -16,7 +16,7 @@ Aplikacja jest oparta o współpracę dwóch jednostek. Cała codzienna interakc
 - **Rola:** Podstawowa interakcja z domownikiem, proste narzędzia, sterowanie domem, szybki czas reakcji. Podproces Głównego Modelu.
 - **Sprzęt:** Raspberry Pi 5 (8GB RAM), oddelegowane w 100% wyłącznie do wnioskowania LLM.
 - **Zależności:** Home Assistant działa całkowicie odseparowany na własnym sprzęcie (Raspberry Pi 4), zwalniając pełne zasoby RPi 5.
-- **Wybór Modelu:** `qwen2.5:3b-instruct`. Pierwotnie zakładano wersję 7B, jednak ze względu na brak akceleracji GPU na Raspberry Pi 5 i potrzebę obsługi systemów głosowych (TTS/STT) z niskim opóźnieniem, obniżono półkę do 3B (zajmuje ok. 2GB RAM), co zapewnia znacznie szybszą generację tekstu na samym procesorze.
+- **Wybór Modelu:** `qwen2.5:1.5b-instruct`. Pierwotnie zakładano wersję 7B i 3B, jednak ze względu na brak akceleracji GPU na Raspberry Pi 5 i potrzebę obsługi systemów głosowych (TTS/STT) z zerowym opóźnieniem, obniżono półkę do 1.5B (zajmuje ok. 1GB RAM), co zapewnia błyskawiczną generację tekstu na samym procesorze. Dodatkowo model 1.5B korzysta z wymuszania schematu JSON (Structured Outputs) co całkowicie eliminuje halucynacje narzędzi.
 
 ### 2. Warstwa Druga: "Szef" (On-Demand)
 - **Rola:** Zaawansowana analityka, obsługa ciężkich zadań, posiadanie dostępu do szerszej puli skomplikowanych narzędzi.
