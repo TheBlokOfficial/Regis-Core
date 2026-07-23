@@ -10,6 +10,7 @@ apps/worker/node.py
 apps/worker/server.py
 core/__init__.py
 core/config.py
+core/discovery.py
 core/exceptions.py
 core/gemini_engine.py
 core/llm_engine.py

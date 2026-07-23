@@ -3,7 +3,7 @@
 
 a = Analysis(
     ['apps\\worker\\node.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
     datas=[],
     hiddenimports=[],

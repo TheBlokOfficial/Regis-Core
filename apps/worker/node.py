@@ -115,9 +115,10 @@ def start():
     """Entry point dla CLI (regis-worker). Uruchamia serwer HTTP Węzła Roboczego."""
     import uvicorn
     from core import config
+    from apps.worker.server import app
     settings = config.load_settings()
     port = settings.get("worker_port", 8001)
-    uvicorn.run("apps.worker.server:app", host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     start()

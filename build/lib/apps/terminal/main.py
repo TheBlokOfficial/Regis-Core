@@ -1,4 +1,14 @@
 import os
+import sys
+
+# Wymuszenie kodowania UTF-8 w konsoli Windows dla biblioteki rich
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass
+
 import logging
 from core import config
 from core.llm_engine import LLMEngine
@@ -78,7 +88,22 @@ def main():
         elif mode_choice == "remote":
             import atexit
             from core.remote_client import RemoteClient
-            server_url = settings.get("server_url", "http://127.0.0.1:8000")
+            server_url = settings.get("server_url", settings.get("controller_url", "http://127.0.0.1:8000"))
+            
+            has_errors = False
+            if server_url == "auto":
+                from apps.terminal.cli import console
+                console.print("\n[dim]Wyszukiwanie kontrolera w sieci lokalnej (Auto-Discovery)... Proszę czekać.[/dim]")
+                from core.discovery import discover_controller
+                try:
+                    server_url = discover_controller()
+                    console.print(f"[green]Odnaleziono kontroler: {server_url}[/green]")
+                except Exception as e:
+                    logging.warning(f"Auto-Discovery zawiodło: {e}")
+                    console.print("[yellow]Nie odnaleziono kontrolera (timeout). Używam domyślnego adresu http://127.0.0.1:8000[/yellow]")
+                    server_url = "http://127.0.0.1:8000"
+                    has_errors = True
+                    
             satellite_id = settings.get("worker_id", "terminal-dev")  # reużywamy worker_id jako ID terminala
             terminal_room = settings.get("terminal_room", None)
 
@@ -92,13 +117,21 @@ def main():
             }
             try:
                 import requests as _req
+                console.print(f"[dim]Rejestracja terminala w kontrolerze ({server_url})...[/dim]")
                 resp = _req.post(f"{server_url}/v1/satellites/register", json=registration_payload, timeout=5)
                 if resp.ok:
                     logging.info(f"Terminal '{satellite_id}' zarejestrowany jako satelita (pokój={terminal_room}).")
                 else:
                     logging.warning(f"Rejestracja satelity zwróciła {resp.status_code}. Kontynuuję.")
+                    has_errors = True
             except Exception as e:
                 logging.warning(f"Nie udało się zarejestrować terminala jako satelity: {e}. Kontynuuję.")
+                console.print("[red]Błąd rejestracji w kontrolerze (Kontroler jest offline?).[/red]")
+                has_errors = True
+
+            if has_errors:
+                from apps.terminal.cli import console
+                console.input("\n[dim]Naciśnij Enter, aby wejść do trybu awaryjnego (urządzenie może nie działać prawidłowo)...[/dim]")
 
             def _unregister_satellite():
                 try:

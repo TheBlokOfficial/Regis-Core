@@ -73,6 +73,13 @@ async def lifespan(app: FastAPI):
 
     logging.info(f"Regis Controller uruchomiony. Tier: {active_tier}")
     heartbeat_task = asyncio.create_task(_heartbeat_loop())
+    
+    from core.discovery import start_discovery_server, get_local_ip
+    controller_port = 8000 # Domyślny port kontrolera
+    local_ip = get_local_ip()
+    discovery_url = f"http://{local_ip}:{controller_port}"
+    start_discovery_server(discovery_url)
+    
     yield
     heartbeat_task.cancel()
     logging.info("Regis Controller zatrzymany.")

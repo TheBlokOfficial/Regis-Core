@@ -4,19 +4,19 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Dług Architektoniczny Konfiguracji)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Wdrożenie Auto-Discovery Zero-Conf)
 
 ### Co zostało zrobione
 
-W tej sesji rozwiązaliśmy poważny problem z długiem dystrybucyjnym (monolityczną dystrybucją plików konfiguracyjnych po urządzeniach brzegowych):
-- **Profile konfiguracyjne:** Wprowadzono wsparcie dla pakietu `python-dotenv`. Od teraz architektura pozwala na stworzenie pliku `.env` na maszynie (zmienna `ACTIVE_PROFILE`), co steruje z którego pliku JSON docelowo ładuje się konfiguracja (np. `data/settings.rpi5-controller.json`). Eliminuje to problem przypadkowego nadpisywania ról między maszynami. Zmieniono stary `settings.json` na `settings.default.json`.
-- **Dystrybucja "na czysto" na Raspberry:** Skrypt `deploy_to_pi.bat` korzysta od teraz z paczek dystrybucyjnych `.whl` budowanych za pomocą pypa buildera. Instalacja odbywa się przez `pip install` na Malince, co kompletnie ucina problem transferowania "śmieciowych" folderów z logami, konfiguracjami i środowiskiem wirtualnym na urządzenie docelowe. Działa z uprawnieniami systemd.
-- **Kompilacja aplikacji pod Windows:** Powstał nowy skrypt `scripts/build_windows.bat` bazujący na PyInstaller. Generuje on niezależne paczki dla aplikacji (Worker, Satellite, Terminal), automatycznie przygotowując im foldery docelowe w `dist/` wraz ze wzorcowymi plikami środowiskowymi.
-- **Zdefiniowanie długu Auto-Discovery:** Zaakceptowano uciążliwość związaną z ciągłym hardkodowaniem adresu IP Malinki. Został przygotowany obszerny dokument `docs/auto_discovery_rfc.md` z propozycją wykonania protokołu Zero-Conf (UDP Broadcast) i dołączeniem mechanizmu auto-generowania gotowych profili do skryptu `.bat`. Zadanie to jest gotowe do implementacji.
+W tej sesji całkowicie usunęliśmy potrzebę wpisywania adresów IP oraz ręcznej konfiguracji połączeń pomiędzy aplikacjami brzegowymi a Kontrolerem:
+- **Serwer Discovery (Kontroler):** Kontroler uruchamia w tle asynchroniczny serwer UDP na porcie 8002, który stale nasłuchuje komunikatów `DISCOVER_REGIS_CONTROLLER`. Gdy tylko usłyszy taki komunikat, odsyła odpowiedź zawierającą swój prawdziwy (wyliczony) adres HTTP oraz port.
+- **Klient Auto-Discovery:** Terminal, Worker oraz Satelita mają zintegrowaną funkcję, która w przypadku ustawienia `server_url` (lub `controller_url`) na wartość `"auto"`, wykonuje broadcsat UDP (`<broadcast>`) na interfejsach sieciowych, czekając 3 sekundy na odpowiedź od Kontrolera. Po jej uzyskaniu system dynamicznie przypisuje prawidłowy IP do połączenia (np. `http://192.168.0.119:8000`).
+- **Aktualizacja skryptów i prekonfiguracja:** Zaktualizowano `core/config.py`, by domyślnie wymuszać `"auto"` w kluczowych polach adresowych (dla bezobsługowego plug-and-play). Konfiguracja ta jest natywnie budowana w aplikacje `.exe` Windowsa za pomocą skryptu `scripts/build_windows.bat`. Dodatkowo, Kontroler potrafi dynamicznie wstrzykiwać swoje lokalne IP podczas odbierania żądań, aby uniknąć przekazywania stringu `"auto"` pomiędzy logiką wewnętrzną backendu.
+- **Fix "Shadowingu":** Zdiagnozowano i usunięto problem podczas instalacji nowej wersji `.whl` na Raspberry Pi. Stare (nieskompilowane) foldery `apps` i `core` rezydujące w głównym katalogu przysłaniały zainstalowany pakiet z `.venv`. Skrypt wdrażający `deploy_to_pi.bat` automatycznie usuwa teraz te foldery przy updacie.
 
 ### Stan testów
 
-Suita testowa `pytest` pomyślnie zwalidowała działanie modułu konfiguracji w obliczu zmienionych bibliotek (26 testów passed). Działanie instalatora na RPi (PIP) potwierdzono poprawką.
+Pomyślnie zwalidowano przesył UDP, usunięto błędy shadowingowe i z powodzeniem uruchomiono skompilowane wersje `regis-worker.exe` oraz `regis-satellite.exe`. Obie aplikacje wygenerowały domyślną konfigurację z flagą `"auto"`, wysłały pakiety po całej domowej sieci i niemalże natychmiast znalazły serwer Kontrolera na RPi, logując sukces i parując się z API.
 
 ---
 
@@ -24,19 +24,20 @@ Suita testowa `pytest` pomyślnie zwalidowała działanie modułu konfiguracji w
 
 ```
 apps/
-├── controller/          
+├── controller/          ← Działa nasłuch UDP w tle. API obsługuje dynamiczne generowanie IP dla "auto"
 ├── worker/              
 ├── satellite/           
 └── terminal/            
 core/
-├── config.py            ← Zaktualizowany do pracy z os.getcwd() (wspiera PyInstaller i .whl)
-└── ...
+├── config.py            ← controller_url i server_url są ustawione domyślnie na "auto"
+└── discovery.py         ← [NOWY] Rozbudowany mechanizm serwera UDP i Klienta Zero-Conf
 docs/
 ├── architectural_debt_report.md  
-├── auto_discovery_rfc.md         ← Zarys protokołu UDP (Zero-Conf) do zrobienia w następnej kolejności
-└── MANIFEST.md                   ← Uzupełniony o notatkę Zero-Conf
+├── auto_discovery_rfc.md         
+└── MANIFEST.md                   
 scripts/
-└── build_windows.bat             ← Nowy skrypt budujący aplikacje brzegowe wraz z otoczką plików
+└── build_windows.bat             
+deploy_to_pi.bat         ← Czyści stare pliki by zapobiec shadowingowi przed instalacją koła
 ```
 
 ---
@@ -44,5 +45,5 @@ scripts/
 ## Kroki Startowe dla Następnego Agenta
 
 1. Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).
-2. Wyśledź notatki w dokumencie `docs/auto_discovery_rfc.md`. 
-3. Twoim zadaniem będzie wdrożenie własnego, natywnego protokołu UDP ucinającego potrzebę wpisywania adresów IP (Zero-Conf) i zaktualizowanie skryptu kompilującego tak, aby sam wklepywał JSON z gotowym wygenerowanym profilem zamiast `.env.example`. Masz już gotowy plan i zgodę użytkownika na działanie.
+2. Spójrz do pliku `.agents/TASKS.md`, by zobaczyć aktualnie niezrealizowane zadania. Ostatnia wielka paczka strukturalno-konfiguracyjna ("Dług Architektoniczny") została właśnie w pełni zamknięta z rąk do rąk (zwieńczona systemem UDP Zero-Conf).
+3. Możesz powrócić do rozwoju inteligentnego mózgu systemu lub rozpocząć wdrażanie integracji audio/wakeword (jeśli sprzęt jest gotowy). Zapytaj użytkownika co chciałby zrobić w pierwszej kolejności.

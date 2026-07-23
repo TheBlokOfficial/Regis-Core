@@ -30,7 +30,7 @@ scp dist\%WHEEL_FILE% theblok@192.168.0.119:~
 
 echo.
 echo [3/3] Instalacja paczki na Malince i restartowanie uslug...
-ssh theblok@192.168.0.119 "cd ~/regis-core ; source .venv/bin/activate ; pip install --force-reinstall ~/%WHEEL_FILE% ; rm ~/%WHEEL_FILE% ; sudo systemctl daemon-reload ; sudo systemctl restart regis.service regis-worker.service"
+ssh theblok@192.168.0.119 "cd ~/regis-core ; rm -rf apps/ core/ ; source .venv/bin/activate ; pip install --force-reinstall ~/%WHEEL_FILE% ; rm ~/%WHEEL_FILE% ; sudo systemctl daemon-reload ; sudo systemctl restart regis.service regis-worker.service"
 
 echo.
 echo ========================================================

@@ -3,7 +3,7 @@
 
 a = Analysis(
     ['apps\\satellite\\main.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
     datas=[],
     hiddenimports=[],

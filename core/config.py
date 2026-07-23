@@ -27,7 +27,8 @@ def load_settings() -> dict[str, Any]:
         "history_limit": 10,
         "ha_url": "http://192.168.0.50:8123",
         "ha_token": "TWÓJ_TOKEN_TUTAJ",
-        "server_url": "http://127.0.0.1:8000",
+        "server_url": "auto",
+        "controller_url": "auto",
         "ollama_url": "http://127.0.0.1:11434"
     }
     if not os.path.exists(SETTINGS_FILE):

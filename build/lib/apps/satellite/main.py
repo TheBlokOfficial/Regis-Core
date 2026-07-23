@@ -1,5 +1,12 @@
 import logging
 import sys
+
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass
 import io
 import sounddevice as sd
 import soundfile as sf
@@ -49,7 +56,14 @@ def main():
     console.print(f"[dim]{get_time()}[/dim] [bold blue]Regis Satellite (Mikrofon Sieciowy)[/bold blue]")
     
     settings = config.load_settings()
-    server_url = settings.get("server_url", "http://127.0.0.1:8000")
+    server_url = settings.get("server_url", settings.get("controller_url", "http://127.0.0.1:8000"))
+    if server_url == "auto":
+        from core.discovery import discover_controller
+        try:
+            server_url = discover_controller()
+        except Exception as e:
+            console.print(f"[dim]{get_time()}[/dim] [bold red]Auto-Discovery zawiodło:[/bold red] {e}. Używam 127.0.0.1")
+            server_url = "http://127.0.0.1:8000"
     
     console.print(f"[dim]{get_time()} Łączenie z serwerem: {server_url}[/dim]")
     client = RemoteClient(base_url=server_url)

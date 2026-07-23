@@ -49,6 +49,15 @@ async def lifespan(app: FastAPI):
     # Parametry rejestracji
     _worker_id = settings.get("worker_id", f"worker-{socket.gethostname()}")
     _controller_url = settings.get("controller_url", "http://127.0.0.1:8000")
+    
+    if _controller_url == "auto":
+        from core.discovery import discover_controller
+        try:
+            _controller_url = discover_controller()
+        except Exception as e:
+            logging.warning(f"Auto-Discovery zawiodło, używam fallbacku (http://127.0.0.1:8000). Błąd: {e}")
+            _controller_url = "http://127.0.0.1:8000"
+
     worker_port = settings.get("worker_port", 8001)
     worker_host = settings.get("worker_host", "127.0.0.1")
 

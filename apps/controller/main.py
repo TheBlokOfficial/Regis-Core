@@ -73,6 +73,13 @@ async def lifespan(app: FastAPI):
 
     logging.info(f"Regis Controller uruchomiony. Tier: {active_tier}")
     heartbeat_task = asyncio.create_task(_heartbeat_loop())
+    
+    from core.discovery import start_discovery_server, get_local_ip
+    controller_port = 8000 # Domyślny port kontrolera
+    local_ip = get_local_ip()
+    discovery_url = f"http://{local_ip}:{controller_port}"
+    start_discovery_server(discovery_url)
+    
     yield
     heartbeat_task.cancel()
     logging.info("Regis Controller zatrzymany.")
@@ -230,7 +237,10 @@ async def chat_stream(request: ChatRequest):
             status_code=503
         )
 
-    controller_url = _settings_cache.get("controller_url", "http://127.0.0.1:8000")
+    controller_url = _settings_cache.get("controller_url", "auto")
+    if controller_url == "auto":
+        from core.discovery import get_local_ip
+        controller_url = f"http://{get_local_ip()}:8000"
 
     # Spatial Context Filtering: wyznaczamy pokój Satelity z rejestru
     room = None
@@ -265,7 +275,10 @@ async def chat_audio_stream(file: UploadFile = File(...)):
         )
 
     audio_bytes = await file.read()
-    controller_url = _settings_cache.get("controller_url", "http://127.0.0.1:8000")
+    controller_url = _settings_cache.get("controller_url", "auto")
+    if controller_url == "auto":
+        from core.discovery import get_local_ip
+        controller_url = f"http://{get_local_ip()}:8000"
 
     loop = asyncio.get_event_loop()
     q: asyncio.Queue = asyncio.Queue()
@@ -341,7 +354,7 @@ async def clear_history():
 def start():
     """Entry point dla CLI (regis-controller)."""
     import uvicorn
-    uvicorn.run("apps.controller.main:app", host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 if __name__ == "__main__":
     start()
