@@ -1,0 +1,49 @@
+import json
+import logging
+import requests
+from typing import Any
+
+
+class RemoteToolsRegistry:
+    """Proxy rejestru narzędzi — deleguje wykonanie do Kontrolera przez HTTP.
+
+    Używany przez Węzeł Roboczy, który nie ma bezpośredniego dostępu do
+    Home Assistant. Kontroler jest jedynym źródłem prawdy (MANIFEST.md §3.1).
+
+    Implementuje ten sam interfejs co ToolsRegistry (metoda execute_tool),
+    dzięki czemu LLMEngine nie wymaga żadnych zmian — podmiana jest transparentna.
+    """
+
+    def __init__(self, controller_url: str, tier: str = "regis"):
+        """
+        Args:
+            controller_url: Bazowy URL Kontrolera (np. 'http://192.168.0.119:8000').
+            tier: Poziom uprawnień węzła — przekazywany do Kontrolera przy wywołaniu.
+        """
+        self.controller_url = controller_url.rstrip("/")
+        self.tier = tier
+
+    def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
+        """Deleguje wywołanie narzędzia do Kontrolera przez HTTP POST.
+
+        Args:
+            tool_name: Nazwa narzędzia (np. 'execute_ha_action').
+            arguments: Argumenty wywołania narzędzia.
+
+        Returns:
+            Wynik narzędzia jako string JSON (identyczny format jak ToolsRegistry).
+        """
+        try:
+            response = requests.post(
+                f"{self.controller_url}/v1/tools/execute",
+                json={"tool_name": tool_name, "arguments": arguments, "tier": self.tier},
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.text
+        except requests.RequestException as e:
+            logging.error(f"Błąd proxy narzędzia '{tool_name}': {e}")
+            return json.dumps(
+                {"error": f"Nie można wykonać narzędzia przez Kontroler: {e}"},
+                ensure_ascii=False
+            )

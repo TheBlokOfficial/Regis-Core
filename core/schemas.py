@@ -1,4 +1,5 @@
 import json
+from pydantic import BaseModel
 
 BASE_TOOLS_SCHEMA = [
     {
@@ -138,3 +139,21 @@ For each function call, return a json object with function name and arguments wi
 <tool_call>
 {{"name": <function-name>, "arguments": <args-json-object>}}
 </tool_call>"""
+
+
+# ─── Modele Rejestru Encji ─────────────────────────────────────────────────
+
+class WorkerRegistrationRequest(BaseModel):
+    """Payload wysyłany przez Węzeł Roboczy podczas rejestracji w Kontrolerze."""
+    id: str
+    host: str
+    port: int
+    model_name: str
+    tier: str  # butler | regis | prime
+
+
+class ToolExecutionRequest(BaseModel):
+    """Payload wysyłany przez Węzeł Roboczy do proxy narzędzi w Kontrolerze."""
+    tool_name: str
+    arguments: dict
+    tier: str = "regis"

@@ -108,14 +108,12 @@ class WorkerNode:
 
 
 def start():
-    """Entry point dla CLI (regis-worker).
-    Obecnie Węzeł Roboczy jest importowany bezpośrednio przez Kontroler.
-    Docelowo ten punkt wejścia uruchomi serwer HTTP dla Węzła.
-    """
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    logging.info("Uruchamianie Węzła Roboczego w trybie standalone nie jest jeszcze w pełni wspierane.")
-    logging.info("Obecnie Węzeł jest uruchamiany bezpośrednio przez Kontroler.")
+    """Entry point dla CLI (regis-worker). Uruchamia serwer HTTP Węzła Roboczego."""
+    import uvicorn
+    from core import config
+    settings = config.load_settings()
+    port = settings.get("worker_port", 8001)
+    uvicorn.run("apps.worker.server:app", host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     start()
