@@ -4,41 +4,27 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Implementacja Spatial Context Filtering)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Deployment, Konfiguracja i Wdrożenie Fallbacku)
 
 ### Co zostało zrobione
 
-Zrealizowano piąty (ostatni) punkt z długu architektonicznego: **Spatial Context Filtering (SCF)**.
+W ramach tej sesji zrealizowano ostateczne wdrożenie nowej architektury systemu (Kontroler + Worker) na sprzęcie docelowym (RPi5 + Desktop PC). Przeprowadzono testy end-to-end, debugowanie sieciowe i rozwiązano problemy komunikacyjne. Zwieńczeniem prac było pełne skonfigurowanie mechanizmu "graceful degradation" (fallback).
 
-Gdy Satelita z konkretnego pokoju wysyła żądanie, Kontroler przekazuje kontekst pokoju przez cały stos aż do `ToolsRegistry`. Model widzi tylko urządzenia z pokoju Satelity zamiast pełnej listy HA. Filtrowanie jest transparentne dla modelu — nie wymaga zmian w `LLMEngine` ani promptach.
+**Główne zadania i poprawki:**
+- **Wdrożenie na RPi5**: Zaktualizowano kod na Malince przez SSH (`pip install -e .`), utworzono usługę systemd `regis.service` dla Kontrolera.
+- **Konfiguracja adresacji**: W `settings.json` na obu urządzeniach zaktualizowano poprawne IP dla `controller_url` oraz `worker_host`.
+- **Naprawa komunikacji (Zapora)**: Rozwiązano problem braku połączenia na linii RPi -> PC, dodając regułę Inbound w Windows Firewall dla portu `8001`.
+- **Wdrożenie mechanizmu Fallback (RPi jako Worker)**: Stworzono i zainstalowano nową usługę systemową na RPi: `regis-worker.service`. RPi uruchamia na sobie w tle lekki węzeł (model 1.5B, tier `butler`). Gdy desktop PC zostanie odłączony lub zamknie aplikację Workera, Kontroler automatycznie i błyskawicznie przerzuca ruch z niedostępnego `regis` na obecnego zawsze w tle `butler`.
+- **Testowanie End-to-End**: Przetestowano strumieniowanie czatu (SSE), rejestrację narzędzi (Tool Calling) po obu stronach sieci i potwierdzono poprawną propagację logów i zapytań. System w całości działa.
 
-**Kluczowe decyzje architektoniczne (zrealizowane):**
-- Mapowanie pokojów (`data/rooms.json`) wewnątrz Regis, niezależne od HA i od konkretnej integracji (MANIFEST.md §3.5)
-- Cross-room: model może wywołać `get_devices(room="inny_pokoj")` — jawny parametr w schemacie narzędzia
-- Fallback: brak `room` lub nieznany pokój → wszystkie urządzenia (model nie traci kontekstu)
-- Terminal CLI rejestruje się jako Satelita przy starcie trybu `remote`; pokój konfigurowalny przez `terminal_room` w `settings.json` (domyślnie `null`)
-- Tier `butler` i `regis` dostają filtrowany kontekst identycznie — filtrowanie na poziomie Kontrolera
-
-**Nowe pliki:**
-- `data/rooms.json` — mapowanie pokoju `moj_pokoj` → 7 lampek Yeelight Colorc
-- `tests/test_spatial_context.py` — 12 testów (26/26 PASSED)
-
-**Zaktualizowane pliki:**
-- `core/config.py` — `load_rooms()`
-- `core/schemas.py` — `SatelliteRegistrationRequest`, `room` w `ToolExecutionRequest`, `room` w schemacie narzędzia `get_devices`
-- `core/tools_registry.py` — `rooms` w `__init__`, filtrowanie w `_get_devices(room=...)`
-- `core/remote_tools_registry.py` — `room` w `__init__` i payloadzie `execute_tool`
-- `core/remote_client.py` — `satellite_id` w `__init__` i payloadzie `generate_response`
-- `apps/controller/main.py` — `satellite_registry` (in-memory dict), endpointy `/v1/satellites/register` i `/v1/satellites/{id}` DELETE, `rooms` w lifespan, propagacja `room` w proxy czatu
-- `apps/worker/server.py` — `room` w `ChatRequest`, przekazanie do `RemoteToolsRegistry`
-- `apps/terminal/main.py` — rejestracja Satelity przy starcie trybu `remote`, wyrejestrowanie przez `atexit`
-- `data/settings.json` — pole `terminal_room: null`
-- `docs/ONBOARDING.md` — sekcja `rooms.json`
-- `docs/MANIFEST.md` — §3.5 (integracje jako pluggable layer, HA jako jedna z wielu)
+**Nowe/Zmodyfikowane pliki:**
+- `data/settings.json` na obu maszynach (prawidłowe URL i Hosty).
+- `scripts/regis.service` na RPi5 (uruchamia Kontroler: `apps.controller.main:app` na 0.0.0.0:8000).
+- `scripts/regis-worker.service` na RPi5 (uruchamia Fallback Worker: `apps.worker.server:app` na 127.0.0.1:8001).
 
 ### Stan testów
 
-`pytest tests/ -v` — **26/26 PASSED** (14 starych + 12 nowych SCF).
+Kod źródłowy nie został zmieniony, testy logiczne pozostają w stanie PASSED. Testy na produkcji (end-to-end flow sieciowy i LLM z Ollamą) zakończyły się pełnym sukcesem.
 
 ---
 
@@ -49,57 +35,43 @@ apps/
 ├── controller/          ← Daemon RPi5 (FastAPI router) + Rejestr Węzłów + Rejestr Satelit + Tool Proxy + SCF
 ├── worker/
 │   ├── node.py          ← WorkerNode (klasa) + start() → uruchamia server.py
-│   └── server.py        ← FastAPI app Węzła Roboczego (room w ChatRequest)
+│   └── server.py        ← FastAPI app Węzła Roboczego
 ├── satellite/           ← w budowie
 └── terminal/            ← działa; rejestruje się jako Satelita w trybie remote
 core/
-├── remote_tools_registry.py  ← proxy narzędzi → Kontroler (room w payloadzie)
-├── remote_client.py          ← klient HTTP terminala (satellite_id w payloadzie)
-├── tools_registry.py         ← filtrowanie per pokój z rooms.json
-├── config.py                 ← load_rooms()
-└── schemas.py                ← SatelliteRegistrationRequest, room w ToolExecutionRequest
-data/
-├── rooms.json           ← NOWY: moj_pokoj → 7 Yeelight Colorc
-├── settings.json        ← terminal_room: null (zmień na nazwę pokoju by aktywować SCF)
-└── ...
+├── remote_tools_registry.py
+├── remote_client.py
+├── tools_registry.py
+├── config.py
+└── schemas.py
 ```
 
 ---
 
 ## Jak uruchomić
 
-System wymaga dwóch osobnych procesów:
+### 1. Na Raspberry Pi 5 (Ciągła praca w tle)
+Obie usługi startują automatycznie wraz ze sprzętem:
+- `regis.service` (Kontroler - port 8000)
+- `regis-worker.service` (Węzeł Awaryjny "Butler" - port 8001)
+
+### 2. Na Desktop PC (Inteligentny Węzeł Roboczy i Terminal)
+W pierwszej kolejności musi zostać uruchomiona **Ollama** w tle. Następnie w folderze projektu:
 ```bash
-# Terminal 1 — Kontroler (RPi5, port 8000)
-regis-controller
+# Główny węzeł dla modelu 14B
+.venv\Scripts\regis-worker
 
-# Terminal 2 — Węzeł Roboczy (port 8001)
-regis-worker
+# Komunikacja z systemem
+.venv\Scripts\regis-terminal
 ```
-
-Terminal CLI (`regis` lub `python -m apps.terminal.main`) → tryb `remote` → rejestruje się automatycznie jako Satelita z `terminal_room` z settings.
-
----
-
-## Dług Architektoniczny (kolejność ma znaczenie)
-
-1. **[DONE]** Rozdzielenie `apps/server/main.py` na Kontroler i Węzeł Roboczy
-2. **[DONE]** Przeniesienie hardcode'owanych adresów IP do `data/settings.json`
-3. **[DONE]** Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`)
-4. **[DONE]** Implementacja Rejestru Encji — WorkerNode jako osobny proces HTTP
-5. **[DONE]** Implementacja Spatial Context Filtering
-
-**Cały dług architektoniczny z listy HANDOFF jest spłacony.**
 
 ---
 
 ## Kroki Startowe dla Następnego Agenta
 
 1. Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).
-2. System wymaga dwóch procesów: `regis-controller` (port 8000) i `regis-worker` (port 8001). Worker rejestruje się automatycznie.
-3. Uzupełnij `data/rooms.json` — dodaj pozostałe pokoje i ich urządzenia (aktualnie tylko `moj_pokoj` z 7 Yeelight Colorc).
-4. Aby aktywować SCF dla terminala: ustaw `"terminal_room": "moj_pokoj"` w `data/settings.json`.
-5. Kolejne priorytety (brak aktywnego zadania — do ustalenia z użytkownikiem):
-   - Nowa Pamięć Długoterminowa (wektorowa)
-   - Integracja WakeWord
-   - Finalizacja STT/TTS
+2. Cała restrukturyzacja architektoniczna jest już skończona. System jest w pełni rozproszony, działający i stabilny na środowisku docelowym użytkownika.
+3. Kontynuuj w oparciu o aktualne priorytety użytkownika z `TASKS.md`:
+   - Integracja WakeWord i mikrofonów
+   - Finalizacja STT / TTS w Satelicie
+   - Projekt Nowej Pamięci Długoterminowej

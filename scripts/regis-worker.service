@@ -1,0 +1,15 @@
+[Unit]
+Description=Regis-Core Fallback Worker
+After=network.target regis.service
+
+[Service]
+Type=simple
+User=theblok
+WorkingDirectory=/home/theblok/regis-core
+ExecStart=/home/theblok/regis-core/.venv/bin/uvicorn apps.worker.server:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

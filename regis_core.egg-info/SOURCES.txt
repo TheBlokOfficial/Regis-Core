@@ -7,12 +7,14 @@ apps/terminal/cli.py
 apps/terminal/main.py
 apps/worker/__init__.py
 apps/worker/node.py
+apps/worker/server.py
 core/__init__.py
 core/config.py
 core/exceptions.py
 core/gemini_engine.py
 core/llm_engine.py
 core/remote_client.py
+core/remote_tools_registry.py
 core/schemas.py
 core/stream_parser.py
 core/stt_engine.py
@@ -27,4 +29,6 @@ regis_core.egg-info/entry_points.txt
 regis_core.egg-info/requires.txt
 regis_core.egg-info/top_level.txt
 tests/test_config.py
+tests/test_entity_registry.py
 tests/test_ha_mock.py
+tests/test_spatial_context.py
