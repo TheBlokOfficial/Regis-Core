@@ -27,6 +27,22 @@ satellite_registry: dict[str, dict] = {}
 _settings_cache: dict = {}
 
 
+async def _heartbeat_loop():
+    """W tle sprawdza dostępność węzłów i usuwa martwe."""
+    while True:
+        await asyncio.sleep(30)
+        workers = list(worker_registry.values())
+        for w in workers:
+            try:
+                url = f"{w['base_url']}/v1/health"
+                resp = await asyncio.to_thread(requests.get, url, timeout=1.0)
+                resp.raise_for_status()
+            except Exception as e:
+                logging.warning(f"[Heartbeat] Węzeł {w['id']} nie odpowiada ({type(e).__name__}). Usuwam z rejestru.")
+                if w['id'] in worker_registry:
+                    del worker_registry[w['id']]
+
+
 def _pick_worker() -> dict | None:
     """Wybiera najlepszy dostępny węzeł roboczy (preferuje wyższy tier)."""
     if not worker_registry:
@@ -56,7 +72,9 @@ async def lifespan(app: FastAPI):
     tools_registry = ToolsRegistry(ha_client, active_tier, rooms=rooms)
 
     logging.info(f"Regis Controller uruchomiony. Tier: {active_tier}")
+    heartbeat_task = asyncio.create_task(_heartbeat_loop())
     yield
+    heartbeat_task.cancel()
     logging.info("Regis Controller zatrzymany.")
 
 
@@ -160,40 +178,59 @@ class ChatRequest(BaseModel):
     satellite_id: str | None = None
 
 
-def _proxy_sse_to_queue(worker_url: str, payload: dict, q: asyncio.Queue, loop: asyncio.AbstractEventLoop):
-    """Pomocnik: odczytuje SSE z Worker i umieszcza eventy w asyncio.Queue."""
-    try:
-        resp = requests.post(worker_url, json=payload, stream=True, timeout=300)
-        resp.raise_for_status()
-        for line in resp.iter_lines():
-            if not line:
-                continue
-            line = line.decode("utf-8")
-            if line.startswith("data: "):
-                try:
-                    event = json.loads(line[6:])
-                    loop.call_soon_threadsafe(q.put_nowait, event)
-                    if event.get("type") in ("done", "error"):
-                        break
-                except json.JSONDecodeError:
-                    pass
-    except Exception as e:
-        logging.exception("Błąd proxy SSE do węzła")
-        loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "content": str(e)})
+def _proxy_sse_to_queue(payload: dict, q: asyncio.Queue, loop: asyncio.AbstractEventLoop):
+    """Pomocnik: odczytuje SSE z Workerów (z Failoverem) i umieszcza eventy w asyncio.Queue."""
+    workers = sorted(list(worker_registry.values()), key=lambda w: _TIER_PRIORITY.get(w["tier"], 0), reverse=True)
+    if not workers:
+        loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "content": "Brak dostępnych węzłów w rejestrze."})
+        return
+
+    success = False
+    for worker in workers:
+        worker_id = worker["id"]
+        worker_url = f"{worker['base_url']}/v1/chat/stream"
+        logging.info(f"Routowanie żądania do węzła: {worker_id}")
+        try:
+            resp = requests.post(worker_url, json=payload, stream=True, timeout=(1.0, 300.0))
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                line = line.decode("utf-8")
+                if line.startswith("data: "):
+                    try:
+                        event = json.loads(line[6:])
+                        loop.call_soon_threadsafe(q.put_nowait, event)
+                        if event.get("type") in ("done", "error"):
+                            success = True
+                            break
+                    except json.JSONDecodeError:
+                        pass
+            success = True
+            break
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
+            logging.warning(f"Węzeł {worker_id} nie odpowiada (Connect błąd). Usuwam z rejestru.")
+            if worker_id in worker_registry:
+                del worker_registry[worker_id]
+        except Exception as e:
+            logging.exception(f"Inny błąd proxy SSE do węzła {worker_id}")
+            loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "content": str(e)})
+            return
+
+    if not success:
+        loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "content": "Wszystkie dostępne węzły zawiodły."})
 
 
 @app.post("/v1/chat/stream")
 async def chat_stream(request: ChatRequest):
     """Przyjmuje wiadomość tekstową — kieruje do aktywnego Węzła Roboczego i proxy-uje SSE."""
-    worker = _pick_worker()
-    if not worker:
+    if not worker_registry:
         return JSONResponse(
-            {"error": "Brak aktywnych węzłów roboczych. Uruchom regis-worker."},
+            {"error": "Błąd Krytyczny: Brak Węzłów. Awaryjny węzeł na Malince (Butler) nie zgłosił gotowości. Sprawdź status regis-worker.service."},
             status_code=503
         )
 
     controller_url = _settings_cache.get("controller_url", "http://127.0.0.1:8000")
-    worker_url = f"{worker['base_url']}/v1/chat/stream"
 
     # Spatial Context Filtering: wyznaczamy pokój Satelity z rejestru
     room = None
@@ -205,7 +242,7 @@ async def chat_stream(request: ChatRequest):
     loop = asyncio.get_event_loop()
     q: asyncio.Queue = asyncio.Queue()
 
-    thread = threading.Thread(target=_proxy_sse_to_queue, args=(worker_url, payload, q, loop))
+    thread = threading.Thread(target=_proxy_sse_to_queue, args=(payload, q, loop))
     thread.start()
 
     async def event_generator():
@@ -221,41 +258,60 @@ async def chat_stream(request: ChatRequest):
 @app.post("/v1/chat/audio_stream")
 async def chat_audio_stream(file: UploadFile = File(...)):
     """Przyjmuje plik WAV — kieruje do aktywnego Węzła i proxy-uje SSE."""
-    worker = _pick_worker()
-    if not worker:
+    if not worker_registry:
         return JSONResponse(
-            {"error": "Brak aktywnych węzłów roboczych. Uruchom regis-worker."},
+            {"error": "Błąd Krytyczny: Brak Węzłów. Awaryjny węzeł na Malince (Butler) nie zgłosił gotowości. Sprawdź status regis-worker.service."},
             status_code=503
         )
 
     audio_bytes = await file.read()
     controller_url = _settings_cache.get("controller_url", "http://127.0.0.1:8000")
-    worker_url = f"{worker['base_url']}/v1/chat/audio_stream"
 
     loop = asyncio.get_event_loop()
     q: asyncio.Queue = asyncio.Queue()
 
     def proxy_audio():
-        try:
-            files = {"file": ("audio.wav", audio_bytes, "audio/wav")}
-            data = {"controller_url": controller_url}
-            resp = requests.post(worker_url, files=files, data=data, stream=True, timeout=300)
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if not line:
-                    continue
-                line = line.decode("utf-8")
-                if line.startswith("data: "):
-                    try:
-                        event = json.loads(line[6:])
-                        loop.call_soon_threadsafe(q.put_nowait, event)
-                        if event.get("type") in ("done", "error"):
-                            break
-                    except json.JSONDecodeError:
-                        pass
-        except Exception as e:
-            logging.exception("Błąd proxy audio do węzła")
-            loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "content": str(e)})
+        workers = sorted(list(worker_registry.values()), key=lambda w: _TIER_PRIORITY.get(w["tier"], 0), reverse=True)
+        if not workers:
+            loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "content": "Brak dostępnych węzłów w rejestrze."})
+            return
+
+        success = False
+        for worker in workers:
+            worker_id = worker["id"]
+            worker_url = f"{worker['base_url']}/v1/chat/audio_stream"
+            logging.info(f"Routowanie żądania audio do węzła: {worker_id}")
+            try:
+                files = {"file": ("audio.wav", audio_bytes, "audio/wav")}
+                data = {"controller_url": controller_url}
+                resp = requests.post(worker_url, files=files, data=data, stream=True, timeout=(1.0, 300.0))
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    line = line.decode("utf-8")
+                    if line.startswith("data: "):
+                        try:
+                            event = json.loads(line[6:])
+                            loop.call_soon_threadsafe(q.put_nowait, event)
+                            if event.get("type") in ("done", "error"):
+                                success = True
+                                break
+                        except json.JSONDecodeError:
+                            pass
+                success = True
+                break
+            except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
+                logging.warning(f"Węzeł {worker_id} nie odpowiada (Connect błąd). Usuwam z rejestru.")
+                if worker_id in worker_registry:
+                    del worker_registry[worker_id]
+            except Exception as e:
+                logging.exception(f"Inny błąd proxy audio do węzła {worker_id}")
+                loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "content": str(e)})
+                return
+                
+        if not success:
+            loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "content": "Wszystkie dostępne węzły zawiodły."})
 
     thread = threading.Thread(target=proxy_audio)
     thread.start()

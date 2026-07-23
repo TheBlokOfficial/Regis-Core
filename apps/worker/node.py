@@ -106,6 +106,10 @@ class WorkerNode:
         """Czyści historię konwersacji silnika LLM."""
         self.llm_engine.clear_history()
 
+    def unload_model(self) -> None:
+        """Wymusza wyładowanie modelu z pamięci (VRAM)."""
+        self.llm_engine.unload_model()
+
 
 def start():
     """Entry point dla CLI (regis-worker). Uruchamia serwer HTTP Węzła Roboczego."""

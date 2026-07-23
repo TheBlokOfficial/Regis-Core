@@ -98,7 +98,7 @@ Przyszłe integracje mogą obejmować m.in.:
 
 ## 4. Rejestr Encji (Entity Registry)
 
-Kontroler jest jedynym źródłem prawdy. Wszystkie procesy w systemie — Satelity i Węzły Robocze — **rejestrują się** w Kontrolerze przy starcie i dostarczają mu metadanych o sobie. Kontroler używa tych metadanych do podejmowania decyzji routingowych i budowania kontekstu dla modelu.
+Kontroler jest jedynym źródłem prawdy. Wszystkie procesy w systemie — Satelity i Węzły Robocze — **rejestrują się** w Kontrolerze przy starcie oraz cyklicznie odnawiają swą rejestrację w tle (Continuous Registration). Dostarczają mu w ten sposób metadanych o sobie, a dzięki pętli ponawiania uodpornione są na restarty Kontrolera. Kontroler używa tych metadanych do podejmowania decyzji routingowych i budowania kontekstu dla modelu.
 
 ### Metadane Satelity
 Każda Satelita przy rejestracji podaje:
@@ -165,6 +165,8 @@ Regis jest **charakterny, rzeczowy i bezpośredni.** Nie owija w bawełnę. Prio
 
 ## 7. Dług Architektoniczny (Stan Obecny vs. Wizja)
 
-`apps/controller/` i `apps/worker/` istnieją jako osobne pakiety z czystym podziałem odpowiedzialności. Kontroler (routing, HA, API dla Satelit) i Węzeł Roboczy (LLM, STT) są rozdzielone strukturalnie — komunikują się przez bezpośredni import.
+Mimo że `apps/controller/` i `apps/worker/` są dziś rozdzielnymi procesami API połączonymi przez Rejestr Encji, cały projekt zderzył się ze ścianą monolitycznej dystrybucji kodu i plików konfiguracyjnych.
 
-Następny krok: Węzeł Roboczy powinien stać się osobnym procesem HTTP (po wdrożeniu Rejestru Encji), tak by mógł działać na osobnej maszynie i rejestrować się dynamicznie w Kontrolerze.
+**Problem Monolitu i Konfiguracji (Priorytet Architektoniczny)**
+Obecnie wszystkie procesy, chociaż uruchamiane oddzielnie, wywodzą się z jednego surowego drzewa i dzielą zcentralizowane pliki konfiguracyjne (np. `data/settings.json`). Przesyłanie projektu na węzły brzegowe (takie jak Malinka) skutkuje nadpisywaniem tożsamości.
+Szczegółowy opis tego krytycznego długu technologicznego i docelowych zaleceń (stworzenie dedykowanych profili konfiguracyjnych oraz binarnych pakietów instalacyjnych) znajduje się w dokumencie: `docs/architectural_debt_report.md`. To priorytet na drodze ewolucji projektu.

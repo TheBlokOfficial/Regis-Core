@@ -92,6 +92,20 @@ class LLMEngine:
         self.history = []
         logging.info("Wyczyszczono historię konwersacji LLM.")
 
+    def unload_model(self) -> None:
+        """Zwalnia model z VRAM wysyłając żądanie z keep_alive=0 do Ollamy."""
+        settings = config.load_settings()
+        url = f"{settings.get('ollama_url', 'http://127.0.0.1:11434')}/api/generate"
+        payload = {
+            "model": self.model_name,
+            "keep_alive": 0
+        }
+        try:
+            requests.post(url, json=payload, timeout=5)
+            logging.info(f"Wysłano żądanie wyładowania modelu {self.model_name} z VRAM.")
+        except Exception as e:
+            logging.warning(f"Nie udało się wyładować modelu: {e}")
+
     def _parse_tool_call_from_text(self, response_text: str) -> tuple[dict | None, str]:
         """Parsuje wywołanie narzędzia z tekstu odpowiedzi.
         

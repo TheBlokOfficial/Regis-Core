@@ -73,8 +73,26 @@ async def lifespan(app: FastAPI):
     except requests.RequestException as e:
         logging.warning(f"Nie udało się zarejestrować w Kontrolerze: {e}. Kontynuuję bez rejestracji.")
 
+    async def _registration_loop():
+        """W tle co 15 sekund odnawia rejestrację w Kontrolerze."""
+        while True:
+            await asyncio.sleep(15)
+            try:
+                await asyncio.to_thread(
+                    requests.post,
+                    f"{_controller_url}/v1/workers/register",
+                    json=registration_payload,
+                    timeout=5
+                )
+            except Exception:
+                pass
+
+    reg_task = asyncio.create_task(_registration_loop())
+
     logging.info(f"Węzeł Roboczy uruchomiony. Tier={active_tier}, Port={worker_port}")
     yield
+
+    reg_task.cancel()
 
     # Wyrejestrowanie z Kontrolera przy zamknięciu
     try:
@@ -82,6 +100,10 @@ async def lifespan(app: FastAPI):
         logging.info(f"Węzeł '{_worker_id}' wyrejestrowany z Kontrolera.")
     except requests.RequestException as e:
         logging.warning(f"Nie udało się wyrejestrować z Kontrolera: {e}")
+
+    # Zwalniamy model z VRAM
+    if worker_node:
+        worker_node.unload_model()
 
     logging.info("Węzeł Roboczy zatrzymany.")
 

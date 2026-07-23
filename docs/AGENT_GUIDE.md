@@ -158,7 +158,7 @@ Lista błędów, które agenty popełniają regularnie w tym projekcie:
 5. **Proponowanie rozwiązań chmurowych** — projekt jest lokalny z założenia.
 6. **Refaktoryzacja bez zgody** — zmiana struktury kodu wymaga planu i akceptacji, nie jest "przy okazji".
 7. **Ignorowanie hardcode'owanych adresów IP** — są świadomie tymczasowe. Nie "naprawiaj" ich bez polecenia.
-8. **Tworzenie nowych plików konfiguracyjnych** — wszelkie dane konfiguracyjne idą do `data/`. Nie twórz plików `.env`, `config.yaml` itp. bez dyskusji.
+8. **Brak izolacji przy tworzeniu konfiguracji** — architektura znajduje się obecnie w trakcie ewolucji z powodu długu dystrybucyjnego. Scentralizowane pliki z `data/` (jak `settings.json`) powodują konflikty podczas deploymentu i są wycofywane na rzecz specyficznych profili (`settings.<PROFILE>.json`) lub lokalnych zmiennych `.env`. Zapoznaj się z raportem `docs/architectural_debt_report.md` zanim zaczniesz rzeźbić w ogólnej konfiguracji.
 
 ---
 
