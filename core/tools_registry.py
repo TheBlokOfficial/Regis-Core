@@ -12,9 +12,10 @@ from core.schemas import BASE_TOOLS_SCHEMA
 class ToolsRegistry:
     """Rejestr narzędzi dostarczanych dla modelu LLM."""
     
-    def __init__(self, ha_client, tier: str = "regis"):
+    def __init__(self, ha_client, tier: str = "regis", rooms: dict = None):
         self.ha_client = ha_client
         self.tier = tier
+        self.rooms = rooms or {}
         
     def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """Kieruje wywołanie narzędzia do odpowiedniej logiki."""
@@ -37,7 +38,7 @@ class ToolsRegistry:
                 return json.dumps({"error": f"Odmowa dostępu do '{tool_name}' w obecnym trybie."}, ensure_ascii=False)
 
             dispatch = {
-                "get_devices": lambda: self._get_devices(arguments.get("domain")),
+                "get_devices": lambda: self._get_devices(arguments.get("domain"), arguments.get("room")),
                 "get_device_state": lambda: self._get_device_state(arguments.get("entity_id")),
                 "execute_ha_action": lambda: self._execute_ha_action(
                     arguments.get("action"), arguments.get("entity_id"), arguments.get("parameters")),
@@ -56,11 +57,20 @@ class ToolsRegistry:
 
     # ─── Home Assistant ───────────────────────────────────────────────
 
-    def _get_devices(self, domain: str = None) -> str:
+    def _get_devices(self, domain: str = None, room: str = None) -> str:
+        """Zwraca urządzenia z opcjonalnym filtrowaniem po domenie i pokoju.
+
+        Jeśli room jest None lub nie istnieje w rooms.json — zwraca wszystkie urządzenia
+        (zachowanie wsteczne). Jeśli room jest podany, zawęża listę do urządzeń
+        przypisanych do tego pokoju w data/rooms.json.
+        """
         states = self.ha_client.get_all_states()
+        room_filter = self.rooms.get(room) if room and self.rooms else None
         devices = []
         for entity_id, data in states.items():
             if domain and not entity_id.startswith(f"{domain}."):
+                continue
+            if room_filter is not None and entity_id not in room_filter:
                 continue
             devices.append({"entity_id": entity_id, "name": data.get("friendly_name")})
         return json.dumps({"devices": devices}, ensure_ascii=False)

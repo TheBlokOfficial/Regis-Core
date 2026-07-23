@@ -38,4 +38,4 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] [ARCH] Przeniesienie hardcode'owanych adresów IP do `data/settings.json`.
 - [x] [ARCH] Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`).
 - [x] [ARCH] Implementacja Rejestru Encji (Satelity i Węzły rejestrują się w Kontrolerze z metadanymi).
-- [ ] [ARCH] Implementacja Spatial Context Filtering (filtrowanie urządzeń HA per pokój na podstawie metadanych Satelity).
+- [x] [ARCH] Implementacja Spatial Context Filtering (filtrowanie urządzeń HA per pokój na podstawie metadanych Satelity).

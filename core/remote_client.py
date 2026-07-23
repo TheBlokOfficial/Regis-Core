@@ -4,8 +4,9 @@ import requests
 from core.exceptions import LLMConnectionError
 
 class RemoteClient:
-    def __init__(self, base_url: str = "http://127.0.0.1:8000"):
+    def __init__(self, base_url: str = "http://127.0.0.1:8000", satellite_id: str | None = None):
         self.base_url = base_url
+        self.satellite_id = satellite_id
         self.model_name = "Serwer Regis"
         self.tier = "remote"
         self.temperature = "N/A"
@@ -18,7 +19,7 @@ class RemoteClient:
             
     def generate_response(self, prompt: str, tools_registry, on_tool_call=None, on_thought_token=None, on_content_token=None) -> str:
         url = f"{self.base_url}/v1/chat/stream"
-        payload = {"message": prompt}
+        payload = {"message": prompt, "satellite_id": self.satellite_id}
         
         try:
             response = requests.post(url, json=payload, stream=True, timeout=300)

@@ -27,7 +27,7 @@ regis-core/
 **Prosta zasada podziału:**
 - `core/` = **mózg** — nie uruchamia się sam, ale wszystko go używa.
 - `apps/` = **kończyny** — uruchamiane bezpośrednio, używają `core/`.
-- `integrations/` = **zmysły** — mówią systemowi co dzieje się w świecie (HA, Gemini).
+- `integrations/` = **zmysły** — klienci zewnętrznych usług i platform (HA, MQTT, inne). Każda integracja to osobny plik. System nie zakłada wyłączności żadnej z nich.
 - `data/` = **pamięć** — konfiguracja i stan, który przeżywa restarty.
 
 ---
@@ -137,10 +137,12 @@ Terminal CLI nie wie, czy rozmawia z lokalnym silnikiem czy z serwerem — oba o
 
 ---
 
-## `integrations/` — Klienci Zewnętrznych API
+## `integrations/` — Klienci Zewnętrznych Usług
+
+Katalog stanowi granicę między logiką systemu a światem zewnętrznym. Każda integracja to osobny plik — dodanie nowej platformy nie wymaga zmian w żadnej innej warstwie (patrz MANIFEST.md §3.5).
 
 ### `ha_client.py` — Klient Home Assistant
-**Co robi:** Zarządza całą komunikacją z Home Assistant REST API.
+**Co robi:** Zarządza całą komunikacją z Home Assistant REST API. HA jest pierwszą i największą integracją — obsługuje żarówki, przełączniki, klimatyzację, odtwarzacze mediów.
 
 Kluczowe cechy:
 - Używa `requests.Session()` — jedno długotrwałe połączenie zamiast nowego połączenia TLS przy każdym wywołaniu. Dramatycznie redukuje latencję.
@@ -171,6 +173,9 @@ Definicja logicznych grup urządzeń. Pozwala modelowi sterować wieloma urządz
 
 ### `aliases.json`
 Mapowanie przyjaznych nazw urządzeń na ich `entity_id` w Home Assistant.
+
+### `rooms.json`
+Mapowanie pokojów na listy `entity_id` — wewnętrzna konfiguracja Regis niezależna od HA (MANIFEST.md §3.5). Używana przez `ToolsRegistry` do Spatial Context Filtering: gdy Satelita z danego pokoju wysyła żądanie, model widzi tylko urządzenia z tego pokoju zamiast pełnej listy. Wczytywana przez `config.load_rooms()`.
 
 ### `regis.log`
 Plik logów aplikacji — zapisywany przy każdym uruchomieniu.

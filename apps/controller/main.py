@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from core import config
-from core.schemas import ToolExecutionRequest, WorkerRegistrationRequest
+from core.schemas import ToolExecutionRequest, WorkerRegistrationRequest, SatelliteRegistrationRequest
 from integrations.ha_client import HomeAssistantClient
 from core.tools_registry import ToolsRegistry
 
@@ -23,6 +23,7 @@ _TIER_PRIORITY = {"prime": 3, "regis": 2, "butler": 1}
 ha_client: HomeAssistantClient | None = None
 tools_registry: ToolsRegistry | None = None
 worker_registry: dict[str, dict] = {}
+satellite_registry: dict[str, dict] = {}
 _settings_cache: dict = {}
 
 
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
     _settings_cache = settings
     aliases = config.load_aliases()
     virtual_groups = config.load_virtual_groups()
+    rooms = config.load_rooms()
 
     ha_client = HomeAssistantClient(
         url=settings.get("ha_url", "http://192.168.0.50:8123"),
@@ -51,7 +53,7 @@ async def lifespan(app: FastAPI):
     )
 
     active_tier = settings.get("active_tier", "butler")
-    tools_registry = ToolsRegistry(ha_client, active_tier)
+    tools_registry = ToolsRegistry(ha_client, active_tier, rooms=rooms)
 
     logging.info(f"Regis Controller uruchomiony. Tier: {active_tier}")
     yield
@@ -95,6 +97,33 @@ async def list_workers():
     return {"workers": list(worker_registry.values())}
 
 
+# ───────────────────────────────────────────────────────────────────────────────
+#  Rejestr Satelit
+# ───────────────────────────────────────────────────────────────────────────────
+
+@app.post("/v1/satellites/register")
+async def register_satellite(request: SatelliteRegistrationRequest):
+    """Rejestruje Satelitę w Kontrolerze. Wywoływane przez Satelitę przy starcie."""
+    satellite_registry[request.id] = {
+        "id": request.id,
+        "room": request.room,
+        "type": request.type,
+        "capabilities": request.capabilities,
+        "wakeword_local": request.wakeword_local,
+    }
+    logging.info(f"Zarejestrowano satelitę: {request.id} (pokój={request.room}, typ={request.type})")
+    return {"status": "registered", "id": request.id}
+
+
+@app.delete("/v1/satellites/{satellite_id}")
+async def unregister_satellite(satellite_id: str):
+    """Wyrejestrowuje Satelitę. Wywoływane przez Satelitę przy zamknięciu."""
+    if satellite_id in satellite_registry:
+        del satellite_registry[satellite_id]
+        logging.info(f"Wyrejestrowano satelitę: {satellite_id}")
+    return {"status": "ok"}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Proxy Narzędzi (Tool Execution)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -104,6 +133,8 @@ async def execute_tool_proxy(request: ToolExecutionRequest):
     """Proxy wywołań narzędzi. Węzeł Roboczy nie ma dostępu do HA — wywołuje ten endpoint.
 
     Kontroler jest jedynym źródłem prawdy dla Home Assistant (MANIFEST.md §3.1).
+    Parametr `room` z requesta jest przekazywany do ToolsRegistry — filtruje urządzenia
+    do pokoju Satelity, która zainicjowała żądanie.
     Zwraca wynik jako string JSON (identyczny format co ToolsRegistry.execute_tool).
     """
     if not tools_registry:
@@ -112,7 +143,11 @@ async def execute_tool_proxy(request: ToolExecutionRequest):
             status_code=503,
             media_type="application/json"
         )
-    result = tools_registry.execute_tool(request.tool_name, request.arguments)
+    # Wstrzykujemy room do argumentów — execute_tool odczyta go przez dispatch
+    arguments = dict(request.arguments)
+    if request.room is not None and "room" not in arguments:
+        arguments["room"] = request.room
+    result = tools_registry.execute_tool(request.tool_name, arguments)
     return Response(content=result, media_type="application/json")
 
 
@@ -122,6 +157,7 @@ async def execute_tool_proxy(request: ToolExecutionRequest):
 
 class ChatRequest(BaseModel):
     message: str
+    satellite_id: str | None = None
 
 
 def _proxy_sse_to_queue(worker_url: str, payload: dict, q: asyncio.Queue, loop: asyncio.AbstractEventLoop):
@@ -158,7 +194,13 @@ async def chat_stream(request: ChatRequest):
 
     controller_url = _settings_cache.get("controller_url", "http://127.0.0.1:8000")
     worker_url = f"{worker['base_url']}/v1/chat/stream"
-    payload = {"message": request.message, "controller_url": controller_url}
+
+    # Spatial Context Filtering: wyznaczamy pokój Satelity z rejestru
+    room = None
+    if request.satellite_id and request.satellite_id in satellite_registry:
+        room = satellite_registry[request.satellite_id].get("room")
+
+    payload = {"message": request.message, "controller_url": controller_url, "room": room}
 
     loop = asyncio.get_event_loop()
     q: asyncio.Queue = asyncio.Queue()

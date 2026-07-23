@@ -4,47 +4,41 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Implementacja Rejestru Encji)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Implementacja Spatial Context Filtering)
 
 ### Co zostało zrobione
 
-Zrealizowano czwarty punkt z długu architektonicznego: **Implementacja Rejestru Encji (Etap 3a)**.
+Zrealizowano piąty (ostatni) punkt z długu architektonicznego: **Spatial Context Filtering (SCF)**.
 
-WorkerNode przestał być importowany bezpośrednio przez Kontroler. Jest teraz **osobnym procesem HTTP** (FastAPI na porcie 8001), który rejestruje się w Kontrolerze przy starcie i wyrejestrowuje przy zamknięciu.
+Gdy Satelita z konkretnego pokoju wysyła żądanie, Kontroler przekazuje kontekst pokoju przez cały stos aż do `ToolsRegistry`. Model widzi tylko urządzenia z pokoju Satelity zamiast pełnej listy HA. Filtrowanie jest transparentne dla modelu — nie wymaga zmian w `LLMEngine` ani promptach.
 
-**Kluczowa decyzja architektoniczna (zrealizowana):**
-- Rejestr węzłów: **in-memory dict** (poprawna semantyka — każdy węzeł rejestruje się przy starcie)
-- Tool calling: **ReAct loop pozostaje w Worker** (bez refaktoryzacji LLMEngine)
-- Worker nie ma bezpośredniego dostępu do HA — używa `RemoteToolsRegistry`, który proxy-uje wywołania do Kontrolera (`POST /v1/tools/execute`)
-- Kontroler jest jedynym źródłem prawdy dla HA (zgodnie z MANIFEST.md §3.1)
+**Kluczowe decyzje architektoniczne (zrealizowane):**
+- Mapowanie pokojów (`data/rooms.json`) wewnątrz Regis, niezależne od HA i od konkretnej integracji (MANIFEST.md §3.5)
+- Cross-room: model może wywołać `get_devices(room="inny_pokoj")` — jawny parametr w schemacie narzędzia
+- Fallback: brak `room` lub nieznany pokój → wszystkie urządzenia (model nie traci kontekstu)
+- Terminal CLI rejestruje się jako Satelita przy starcie trybu `remote`; pokój konfigurowalny przez `terminal_room` w `settings.json` (domyślnie `null`)
+- Tier `butler` i `regis` dostają filtrowany kontekst identycznie — filtrowanie na poziomie Kontrolera
 
 **Nowe pliki:**
-- `core/remote_tools_registry.py` — `RemoteToolsRegistry`: proxy narzędzi przez HTTP do Kontrolera. Implementuje ten sam interfejs co `ToolsRegistry` — podmiana jest transparentna dla `LLMEngine`.
-- `apps/worker/server.py` — FastAPI app Węzła Roboczego. Lifespan: rejestracja/wyrejestrowanie. Endpointy: `/v1/health`, `/v1/chat/stream`, `/v1/chat/audio_stream`, `/v1/clear_history`.
-- `tests/test_entity_registry.py` — 9 nowych testów (14/14 PASSED).
+- `data/rooms.json` — mapowanie pokoju `moj_pokoj` → 7 lampek Yeelight Colorc
+- `tests/test_spatial_context.py` — 12 testów (26/26 PASSED)
 
 **Zaktualizowane pliki:**
-- `core/schemas.py` — dodano `WorkerRegistrationRequest` i `ToolExecutionRequest` (modele Pydantic)
-- `apps/worker/node.py` — `start()` teraz naprawdę uruchamia serwer HTTP przez uvicorn (port z settings)
-- `apps/controller/main.py` — **duży refaktor**: usunięto import WorkerNode; dodano `worker_registry` (dict), `_pick_worker()` (wybór po tierze: prime > regis > butler); nowe endpointy: `/v1/workers/register`, `/v1/workers/{id}` DELETE, `/v1/workers` GET, `/v1/tools/execute`; endpointy czatu teraz proxy-ują SSE do Worker przez HTTP
-- `data/settings.json` — dodano: `controller_url`, `worker_port` (8001), `worker_host`, `worker_id`
-
-### Jak uruchomić (nowy model)
-
-System wymaga teraz **dwóch osobnych procesów**:
-```bash
-# Terminal 1 — Kontroler (RPi5, port 8000)
-regis-controller
-
-# Terminal 2 — Węzeł Roboczy (RPi5 lub desktop, port 8001)
-regis-worker
-```
-
-Worker rejestruje się w Kontrolerze automatycznie. Żadne inne zmiany nie są potrzebne — Terminal CLI i inne Satelity komunikują się nadal z Kontrolerem na porcie 8000.
+- `core/config.py` — `load_rooms()`
+- `core/schemas.py` — `SatelliteRegistrationRequest`, `room` w `ToolExecutionRequest`, `room` w schemacie narzędzia `get_devices`
+- `core/tools_registry.py` — `rooms` w `__init__`, filtrowanie w `_get_devices(room=...)`
+- `core/remote_tools_registry.py` — `room` w `__init__` i payloadzie `execute_tool`
+- `core/remote_client.py` — `satellite_id` w `__init__` i payloadzie `generate_response`
+- `apps/controller/main.py` — `satellite_registry` (in-memory dict), endpointy `/v1/satellites/register` i `/v1/satellites/{id}` DELETE, `rooms` w lifespan, propagacja `room` w proxy czatu
+- `apps/worker/server.py` — `room` w `ChatRequest`, przekazanie do `RemoteToolsRegistry`
+- `apps/terminal/main.py` — rejestracja Satelity przy starcie trybu `remote`, wyrejestrowanie przez `atexit`
+- `data/settings.json` — pole `terminal_room: null`
+- `docs/ONBOARDING.md` — sekcja `rooms.json`
+- `docs/MANIFEST.md` — §3.5 (integracje jako pluggable layer, HA jako jedna z wielu)
 
 ### Stan testów
 
-`pytest tests/ -v` — **14/14 PASSED** (5 starych + 9 nowych).
+`pytest tests/ -v` — **26/26 PASSED** (14 starych + 12 nowych SCF).
 
 ---
 
@@ -52,18 +46,38 @@ Worker rejestruje się w Kontrolerze automatycznie. Żadne inne zmiany nie są p
 
 ```
 apps/
-├── controller/          ← Daemon RPi5 (FastAPI router) + Rejestr Węzłów + Tool Proxy
+├── controller/          ← Daemon RPi5 (FastAPI router) + Rejestr Węzłów + Rejestr Satelit + Tool Proxy + SCF
 ├── worker/
 │   ├── node.py          ← WorkerNode (klasa) + start() → uruchamia server.py
-│   └── server.py        ← NOWY: FastAPI app Węzła Roboczego
+│   └── server.py        ← FastAPI app Węzła Roboczego (room w ChatRequest)
 ├── satellite/           ← w budowie
-└── terminal/            ← działa, bez zmian
+└── terminal/            ← działa; rejestruje się jako Satelita w trybie remote
 core/
-├── remote_tools_registry.py  ← NOWY: proxy narzędzi → Kontroler
-├── schemas.py           ← Zaktualizowany: dodane modele Pydantic rejestracji
+├── remote_tools_registry.py  ← proxy narzędzi → Kontroler (room w payloadzie)
+├── remote_client.py          ← klient HTTP terminala (satellite_id w payloadzie)
+├── tools_registry.py         ← filtrowanie per pokój z rooms.json
+├── config.py                 ← load_rooms()
+└── schemas.py                ← SatelliteRegistrationRequest, room w ToolExecutionRequest
+data/
+├── rooms.json           ← NOWY: moj_pokoj → 7 Yeelight Colorc
+├── settings.json        ← terminal_room: null (zmień na nazwę pokoju by aktywować SCF)
 └── ...
-data/settings.json       ← Zaktualizowany: controller_url, worker_port, worker_host, worker_id
 ```
+
+---
+
+## Jak uruchomić
+
+System wymaga dwóch osobnych procesów:
+```bash
+# Terminal 1 — Kontroler (RPi5, port 8000)
+regis-controller
+
+# Terminal 2 — Węzeł Roboczy (port 8001)
+regis-worker
+```
+
+Terminal CLI (`regis` lub `python -m apps.terminal.main`) → tryb `remote` → rejestruje się automatycznie jako Satelita z `terminal_room` z settings.
 
 ---
 
@@ -72,8 +86,10 @@ data/settings.json       ← Zaktualizowany: controller_url, worker_port, worker
 1. **[DONE]** Rozdzielenie `apps/server/main.py` na Kontroler i Węzeł Roboczy
 2. **[DONE]** Przeniesienie hardcode'owanych adresów IP do `data/settings.json`
 3. **[DONE]** Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`)
-4. **[DONE]** Implementacja Rejestru Encji — WorkerNode jako osobny proces HTTP, rejestracja w Kontrolerze
-5. **[KOLEJNE]** Implementacja Spatial Context Filtering (filtrowanie urządzeń HA per pokój na podstawie metadanych Satelity)
+4. **[DONE]** Implementacja Rejestru Encji — WorkerNode jako osobny proces HTTP
+5. **[DONE]** Implementacja Spatial Context Filtering
+
+**Cały dług architektoniczny z listy HANDOFF jest spłacony.**
 
 ---
 
@@ -81,9 +97,9 @@ data/settings.json       ← Zaktualizowany: controller_url, worker_port, worker
 
 1. Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).
 2. System wymaga dwóch procesów: `regis-controller` (port 8000) i `regis-worker` (port 8001). Worker rejestruje się automatycznie.
-3. Następne zadanie: **Implementacja Spatial Context Filtering** (punkt 5 długu). Wymaga:
-   - Rozszerzenia modelu rejestracji Satelit (pole `room`)
-   - Rozszerzenia endpointu `/v1/workers/register` lub nowego `/v1/satellites/register`
-   - Modyfikacji logiki w Kontrolerze: gdy Satelita wysyła żądanie, Kontroler filtruje urządzenia HA do pokoju Satelity i buduje wąski kontekst dla modelu
-   - Patrz MANIFEST.md §4 (Rejestr Encji / Metadane Satelity + Kontekst Przestrzenny)
-4. Otwarta kwestia cross-room commands (nierozstrzygnięta — patrz MANIFEST.md §4): omówić z użytkownikiem przed implementacją.
+3. Uzupełnij `data/rooms.json` — dodaj pozostałe pokoje i ich urządzenia (aktualnie tylko `moj_pokoj` z 7 Yeelight Colorc).
+4. Aby aktywować SCF dla terminala: ustaw `"terminal_room": "moj_pokoj"` w `data/settings.json`.
+5. Kolejne priorytety (brak aktywnego zadania — do ustalenia z użytkownikiem):
+   - Nowa Pamięć Długoterminowa (wektorowa)
+   - Integracja WakeWord
+   - Finalizacja STT/TTS

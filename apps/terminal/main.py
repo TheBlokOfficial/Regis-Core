@@ -76,9 +76,41 @@ def main():
             cli.run_production_loop(llm_engine, ha_client, display_name)
             
         elif mode_choice == "remote":
+            import atexit
             from core.remote_client import RemoteClient
             server_url = settings.get("server_url", "http://127.0.0.1:8000")
-            client = RemoteClient(base_url=server_url)
+            satellite_id = settings.get("worker_id", "terminal-dev")  # reużywamy worker_id jako ID terminala
+            terminal_room = settings.get("terminal_room", None)
+
+            # Rejestracja Terminala jako Satelity w Kontrolerze
+            registration_payload = {
+                "id": satellite_id,
+                "room": terminal_room,
+                "type": "terminal",
+                "capabilities": ["text"],
+                "wakeword_local": False,
+            }
+            try:
+                import requests as _req
+                resp = _req.post(f"{server_url}/v1/satellites/register", json=registration_payload, timeout=5)
+                if resp.ok:
+                    logging.info(f"Terminal '{satellite_id}' zarejestrowany jako satelita (pokój={terminal_room}).")
+                else:
+                    logging.warning(f"Rejestracja satelity zwróciła {resp.status_code}. Kontynuuję.")
+            except Exception as e:
+                logging.warning(f"Nie udało się zarejestrować terminala jako satelity: {e}. Kontynuuję.")
+
+            def _unregister_satellite():
+                try:
+                    import requests as _req
+                    _req.delete(f"{server_url}/v1/satellites/{satellite_id}", timeout=5)
+                    logging.info(f"Terminal '{satellite_id}' wyrejestrowany z Kontrolera.")
+                except Exception:
+                    pass
+
+            atexit.register(_unregister_satellite)
+
+            client = RemoteClient(base_url=server_url, satellite_id=satellite_id)
             cli.run_remote_loop(client)
 
 

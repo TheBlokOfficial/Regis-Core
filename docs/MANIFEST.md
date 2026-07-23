@@ -80,6 +80,22 @@ Cisza
 
 ---
 
+## 3.5 Warstwa Integracji (Rozstrzygnięta Zasada Architektoniczna)
+
+**Home Assistant jest jedną z możliwych integracji — nie jedyną.**
+
+Katalog `integrations/` to granica między logiką systemu a światem zewnętrznym. HA jest pierwszą i prawdopodobnie największą integracją (żarówki, przełączniki, klimatyzacja, odtwarzacze — wszystko co najłatwiej podłączyć przez HA), ale architektura nie zakłada jego wyłączności.
+
+Przyszłe integracje mogą obejmować m.in.:
+- Bezpośrednia komunikacja MQTT
+- Inne platformy Smart Home (np. Zigbee2MQTT)
+- Własne skrypty i usługi sieciowe
+- Dowolny inny endpoint, który ma sens w kontekście sterowania domem
+
+**Konsekwencja dla kodu:** `ToolsRegistry` i `RemoteToolsRegistry` są agnostyczne wobec źródła narzędzi — rozmawiają z `integrations/` przez abstrakcyjny interfejs, nie bezpośrednio z HA. Dodanie nowej integracji oznacza: nowy plik w `integrations/`, nowe narzędzie w `core/schemas.py` i nowy handler w `core/tools_registry.py`. Żadne inne warstwy nie wymagają zmian.
+
+---
+
 ## 4. Rejestr Encji (Entity Registry)
 
 Kontroler jest jedynym źródłem prawdy. Wszystkie procesy w systemie — Satelity i Węzły Robocze — **rejestrują się** w Kontrolerze przy starcie i dostarczają mu metadanych o sobie. Kontroler używa tych metadanych do podejmowania decyzji routingowych i budowania kontekstu dla modelu.

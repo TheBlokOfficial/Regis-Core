@@ -92,6 +92,7 @@ app = FastAPI(lifespan=lifespan)
 class ChatRequest(BaseModel):
     message: str
     controller_url: str = "http://127.0.0.1:8000"
+    room: str | None = None  # kontekst pokoju Satelity — używany do inicjalizacji RemoteToolsRegistry
 
 
 @app.get("/v1/health")
@@ -117,7 +118,7 @@ async def chat_stream(request: ChatRequest):
     q: asyncio.Queue = asyncio.Queue()
 
     tier = worker_node.llm_engine.tier
-    remote_tools = RemoteToolsRegistry(request.controller_url, tier)
+    remote_tools = RemoteToolsRegistry(request.controller_url, tier, room=request.room)
 
     def on_thought_token(chunk):
         loop.call_soon_threadsafe(q.put_nowait, {"type": "thought", "content": chunk})
@@ -167,7 +168,7 @@ async def chat_audio_stream(
     q: asyncio.Queue = asyncio.Queue()
 
     tier = worker_node.llm_engine.tier
-    remote_tools = RemoteToolsRegistry(controller_url, tier)
+    remote_tools = RemoteToolsRegistry(controller_url, tier, room=None)
 
     def on_stt_result(text):
         loop.call_soon_threadsafe(q.put_nowait, {"type": "stt_result", "content": text})

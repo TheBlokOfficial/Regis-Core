@@ -70,3 +70,23 @@ def load_virtual_groups() -> dict[str, list[str]]:
             return json.load(f)
         except json.JSONDecodeError:
             return {}
+
+def load_rooms() -> dict[str, list[str]]:
+    """Ładuje mapowanie pokojów na listy entity_id z data/rooms.json.
+
+    Plik rooms.json jest wewnętrzną konfiguracją Regis — niezależną od HA
+    i od konkretnej integracji (MANIFEST.md §3.5).
+
+    Returns:
+        dict[str, list[str]]: Słownik mapujący nazwę pokoju na listę entity_id,
+        np. {"salon": ["light.salon_lampa", "switch.salon_tv"]}
+    """
+    rooms_file = os.path.join(DATA_DIR, "rooms.json")
+    if not os.path.exists(rooms_file):
+        return {}
+    with open(rooms_file, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+

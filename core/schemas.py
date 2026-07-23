@@ -14,6 +14,10 @@ BASE_TOOLS_SCHEMA = [
                     "domain": {
                         "type": "string",
                         "description": "Opcjonalna domena, np. 'light' lub 'media_player', aby przefiltrować urządzenia."
+                    },
+                    "room": {
+                        "type": "string",
+                        "description": "Optional room filter, e.g. 'salon' or 'sypialnia'. By default returns devices from the user's current room. Use this to access devices in a different room when the user explicitly requests it."
                     }
                 },
                 "required": []
@@ -157,3 +161,13 @@ class ToolExecutionRequest(BaseModel):
     tool_name: str
     arguments: dict
     tier: str = "regis"
+    room: str | None = None  # kontekst pokoju Satelity — propagowany przez cały stos
+
+
+class SatelliteRegistrationRequest(BaseModel):
+    """Payload wysyłany przez Satelitę podczas rejestracji w Kontrolerze."""
+    id: str
+    room: str | None = None      # np. "salon", "sypialnia" lub None (bez filtrowania)
+    type: str                     # "terminal" | "desktop" | "esp32"
+    capabilities: list[str]      # np. ["text"] lub ["audio_in", "audio_out"]
+    wakeword_local: bool = False
