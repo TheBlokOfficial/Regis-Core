@@ -149,4 +149,6 @@ Regis jest **charakterny, rzeczowy i bezpośredni.** Nie owija w bawełnę. Prio
 
 ## 7. Dług Architektoniczny (Stan Obecny vs. Wizja)
 
-Aktualny `apps/server/` spełnia jednocześnie rolę Kontrolera i Węzła Roboczego — obsługuje zarówno routing, jak i sam uruchamia model LLM. W nowej architekturze te dwie rzeczy **muszą być rozdzielone**. To największy aktualny dług techniczny projektu.
+`apps/controller/` i `apps/worker/` istnieją jako osobne pakiety z czystym podziałem odpowiedzialności. Kontroler (routing, HA, API dla Satelit) i Węzeł Roboczy (LLM, STT) są rozdzielone strukturalnie — komunikują się przez bezpośredni import.
+
+Następny krok: Węzeł Roboczy powinien stać się osobnym procesem HTTP (po wdrożeniu Rejestru Encji), tak by mógł działać na osobnej maszynie i rejestrować się dynamicznie w Kontrolerze.
