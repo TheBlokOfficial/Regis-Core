@@ -41,4 +41,8 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] [ARCH] Implementacja Spatial Context Filtering (filtrowanie urządzeń HA per pokój na podstawie metadanych Satelity).
 - [x] [ARCH] Uodpornienie rejestru Kontrolera za pomocą procedury "Continuous Registration" na Węzłach.
 - [x] [ARCH] Zniwelowanie długu dystrybucyjnego (profilowanie `settings.json` na instancje i utworzenie binarek Satelity).
-- [x] [ARCH] Implementacja Auto-Discovery dla Węzłów (UDP Broadcast Zero-Conf) i auto-generowanie plików konfiguracyjnych po kompilacji.
+- [x] Implementacja Auto-Discovery dla Węzłów (UDP Broadcast Zero-Conf) i auto-generowanie plików konfiguracyjnych po kompilacji.
+- [x] Refaktoryzacja monorepo: wypłaszczenie i standaryzacja przedrostków `regis_` w celu poprawy przejrzystości.
+- [x] Implementacja architektury Portable App (wydzielone foldery `system/` i `data/`) dla dystrybucji Windows wraz z instrukcją `Smart Pause`.
+- [x] Stworzenie i integracja pełnoprawnego modułu zarządzającego projektem `regis_cli` w Pythonie (zastąpienie starych skryptów wsadowych `.bat`).
+- [ ] Zmiana architektury projektu na standard "src layout" (katalog `src/` grupujący cały kod źródłowy dla poprawy czytelności).

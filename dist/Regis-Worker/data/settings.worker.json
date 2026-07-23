@@ -1,6 +1,0 @@
-{
-    "controller_url": "auto",
-    "worker_port": 8001,
-    "worker_host": "0.0.0.0",
-    "active_tier": "regis"
-}

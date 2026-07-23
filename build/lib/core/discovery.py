@@ -7,33 +7,34 @@ DISCOVERY_PORT = 8002
 PING_MSG = b"REGIS_DISCOVERY_PING"
 
 def start_discovery_server(controller_url: str) -> threading.Thread:
-    with open("/home/theblok/discovery_called.log", "w") as f:
-        f.write("FUNCTION CALLED\n")
+    logging.debug("start_discovery_server CALLED")
     def _listen():
-        with open("/home/theblok/discovery_debug.log", "w") as f:
-            f.write("THREAD STARTED\n")
+        logging.debug("Discovery UDP THREAD STARTED")
+        while True:
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 sock.bind(("", DISCOVERY_PORT))
-                f.write(f"Serwer UDP Auto-Discovery uruchomiony na porcie {DISCOVERY_PORT}\n")
-                f.flush()
+                logging.info(f"Serwer UDP Auto-Discovery uruchomiony na porcie {DISCOVERY_PORT}")
                 
                 while True:
                     try:
                         data, addr = sock.recvfrom(1024)
                         if data == PING_MSG:
-                            f.write(f"[Discovery] Otrzymano ping od {addr}. Odsyłam adres: {controller_url}\n")
-                            f.flush()
+                            logging.debug(f"[Discovery] Otrzymano ping od {addr}. Odsyłam adres: {controller_url}")
                             sock.sendto(controller_url.encode('utf-8'), addr)
                     except Exception as e:
-                        f.write(f"Błąd przetwarzania pakietu UDP Discovery: {e}\n")
-                        f.flush()
+                        logging.warning(f"Błąd przetwarzania pakietu UDP Discovery: {e}")
                         time.sleep(1)
             except Exception as e:
-                f.write(f"CRITICAL UDP ERROR: {e}\n")
-                f.flush()
+                logging.error(f"CRITICAL UDP ERROR w nasłuchiwaniu (błąd bindowania/gniazda): {e}. Próba restartu za 5 sekund...")
+                time.sleep(5)
+            finally:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
 
     t = threading.Thread(target=_listen, daemon=True)
     t.start()

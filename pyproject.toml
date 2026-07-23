@@ -44,10 +44,10 @@ all = [
 ]
 
 [project.scripts]
-regis-controller = "apps.controller.main:start"
-regis-worker     = "apps.worker.node:start"
-regis-terminal   = "apps.terminal.main:main"
+regis-controller = "regis_controller.main:start"
+regis-worker     = "regis_worker.node:start"
+regis-terminal   = "regis_terminal.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*", "apps*", "integrations*"]
+include = ["core*", "integrations*", "regis_*"]
