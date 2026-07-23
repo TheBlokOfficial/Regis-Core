@@ -1,13 +1,21 @@
 import os
+import sys
 import json
 from typing import Any
+from dotenv import load_dotenv
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "data")
+load_dotenv()
 
-SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+if getattr(sys, 'frozen', False):
+    WORK_DIR = os.path.dirname(sys.executable)
+else:
+    WORK_DIR = os.getcwd()
+
+DATA_DIR = os.getenv("REGIS_DATA_DIR", os.path.join(WORK_DIR, "data"))
+PROFILE = os.getenv("ACTIVE_PROFILE", "default")
+
+SETTINGS_FILE = os.path.join(DATA_DIR, f"settings.{PROFILE}.json")
 ALIASES_FILE = os.path.join(DATA_DIR, "aliases.json")
-
 def load_settings() -> dict[str, Any]:
     """Ładuje główne ustawienia programu z fallbackiem na wartości domyślne.
     

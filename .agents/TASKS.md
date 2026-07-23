@@ -40,4 +40,5 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] [ARCH] Implementacja Rejestru Encji (Satelity i Węzły rejestrują się w Kontrolerze z metadanymi).
 - [x] [ARCH] Implementacja Spatial Context Filtering (filtrowanie urządzeń HA per pokój na podstawie metadanych Satelity).
 - [x] [ARCH] Uodpornienie rejestru Kontrolera za pomocą procedury "Continuous Registration" na Węzłach.
-- [ ] [ARCH] Zniwelowanie długu dystrybucyjnego (profilowanie `settings.json` na instancje i utworzenie binarek Satelity).
+- [x] [ARCH] Zniwelowanie długu dystrybucyjnego (profilowanie `settings.json` na instancje i utworzenie binarek Satelity).
+- [ ] [ARCH] Implementacja Auto-Discovery dla Węzłów (UDP Broadcast Zero-Conf) i auto-generowanie plików konfiguracyjnych po kompilacji.

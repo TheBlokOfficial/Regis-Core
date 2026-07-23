@@ -9,6 +9,7 @@ description = "Lekka warstwa abstrakcji miedzy uzytkownikiem a systemem Smart Ho
 requires-python = ">=3.11"
 dependencies = [
     "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,8 @@ dev = [
     "rich==13.7.0",
     "questionary==2.0.1",
     "pytest>=7.4.3",
+    "pyinstaller>=6.9.0",
+    "build>=1.2.1",
 ]
 all = [
     "regis-core[controller]",

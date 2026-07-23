@@ -4,19 +4,19 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Failover & Continuous Registration)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Dług Architektoniczny Konfiguracji)
 
 ### Co zostało zrobione
 
-W drugiej turze tej sesji uodporniono środowisko węzłów i rozwiązano poważne błędy wyścigowe oraz problemy braku odporności sieciowej. 
-- **Zwalnianie pamięci VRAM**: Skonfigurowano rutynę Węzła Roboczego, by podczas uśmiercania wysyłał polecenie do LLM engine nakazujące wyczyszczenie 14B/3B z VRAM przy użyciu parametru `keep_alive: 0`.
-- **Failover timeout i Heartbeat**: Kontroler został wyposażony w 30-sekundowego loopa odpytującego porty, by automatycznie ubijać martwe węzły. Podczas proxy-owania czatu dodano elastyczne timeouty (`timeout=(1.0, 300.0)`), natychmiast wrzucające fallback-węzeł (Butlera) na pierwszą linię frontu w przypadku padu Desktopu PC.
-- **Continuous Registration**: Odkryto lukę – po resecie Kontrolera, rejestr czyścił RAM i odcinał wciąż żyjące węzły. Węzły otrzymały loopa asynchronicznego w tle, który co 15 sekund melduje Kontrolerowi swoją obecność (nawet jeśli odpowiedź zwrotna się załamie, ukrywa to i ponawia do skutku).
-- **Zdefiniowanie Długu Architektonicznego**: Odkryto krytyczny błąd w dystrybucji na skutek monolitycznego pliku konfiguracyjnego `data/settings.json`, który podczas wysyłania (Deploy'a) psuje tożsamość Węzła docelowego (Raspberry Pi zaczęło udawać PC, ponieważ nadpisało sobie pliki po reboocie). Powstał w dokumencie dedykowany raport usterki – `docs/architectural_debt_report.md`. Skrypt powłoki na doraźne zniwelowanie usterki dostał tymczasową flagę omijania przesyłu pliku (`--exclude=data/settings.json`).
+W tej sesji rozwiązaliśmy poważny problem z długiem dystrybucyjnym (monolityczną dystrybucją plików konfiguracyjnych po urządzeniach brzegowych):
+- **Profile konfiguracyjne:** Wprowadzono wsparcie dla pakietu `python-dotenv`. Od teraz architektura pozwala na stworzenie pliku `.env` na maszynie (zmienna `ACTIVE_PROFILE`), co steruje z którego pliku JSON docelowo ładuje się konfiguracja (np. `data/settings.rpi5-controller.json`). Eliminuje to problem przypadkowego nadpisywania ról między maszynami. Zmieniono stary `settings.json` na `settings.default.json`.
+- **Dystrybucja "na czysto" na Raspberry:** Skrypt `deploy_to_pi.bat` korzysta od teraz z paczek dystrybucyjnych `.whl` budowanych za pomocą pypa buildera. Instalacja odbywa się przez `pip install` na Malince, co kompletnie ucina problem transferowania "śmieciowych" folderów z logami, konfiguracjami i środowiskiem wirtualnym na urządzenie docelowe. Działa z uprawnieniami systemd.
+- **Kompilacja aplikacji pod Windows:** Powstał nowy skrypt `scripts/build_windows.bat` bazujący na PyInstaller. Generuje on niezależne paczki dla aplikacji (Worker, Satellite, Terminal), automatycznie przygotowując im foldery docelowe w `dist/` wraz ze wzorcowymi plikami środowiskowymi.
+- **Zdefiniowanie długu Auto-Discovery:** Zaakceptowano uciążliwość związaną z ciągłym hardkodowaniem adresu IP Malinki. Został przygotowany obszerny dokument `docs/auto_discovery_rfc.md` z propozycją wykonania protokołu Zero-Conf (UDP Broadcast) i dołączeniem mechanizmu auto-generowania gotowych profili do skryptu `.bat`. Zadanie to jest gotowe do implementacji.
 
 ### Stan testów
 
-Kod źródłowy pomyślnie zwalidowano kompilatorem Pythona. Działanie procedur pomyślnie zweryfikowano testami operacyjnymi na docelowych maszynach przez terminal oraz system logowania `journalctl`.
+Suita testowa `pytest` pomyślnie zwalidowała działanie modułu konfiguracji w obliczu zmienionych bibliotek (26 testów passed). Działanie instalatora na RPi (PIP) potwierdzono poprawką.
 
 ---
 
@@ -24,18 +24,19 @@ Kod źródłowy pomyślnie zwalidowano kompilatorem Pythona. Działanie procedur
 
 ```
 apps/
-├── controller/          ← Posiada Heartbeat Węzłów
-├── worker/
-│   ├── node.py          
-│   └── server.py        ← Posiada Continuous Registration i odłącza VRAM
+├── controller/          
+├── worker/              
 ├── satellite/           
 └── terminal/            
 core/
-├── llm_engine.py        ← Zaktualizowany pod czyszczenie VRAM (unload_model)
+├── config.py            ← Zaktualizowany do pracy z os.getcwd() (wspiera PyInstaller i .whl)
 └── ...
 docs/
-├── architectural_debt_report.md  ← Raport usterki dla agentów
-└── ...
+├── architectural_debt_report.md  
+├── auto_discovery_rfc.md         ← Zarys protokołu UDP (Zero-Conf) do zrobienia w następnej kolejności
+└── MANIFEST.md                   ← Uzupełniony o notatkę Zero-Conf
+scripts/
+└── build_windows.bat             ← Nowy skrypt budujący aplikacje brzegowe wraz z otoczką plików
 ```
 
 ---
@@ -43,5 +44,5 @@ docs/
 ## Kroki Startowe dla Następnego Agenta
 
 1. Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).
-2. Koniecznie przeczytaj raport `docs/architectural_debt_report.md`. Twoim priorytetem jest w tej chwili pozbycie się długu konfiguracyjnego opisanego w tym dokumencie (Profile, Pliki `.env`). Bez tego każda aktualizacja na RPi5 może stwarzać luki bezpieczeństwa lub nadpisywać tożsamość maszyn.
-3. Gdy problem konfiguracji i Długu Architektonicznego zostanie rozstrzygnięty i wyczyszczony, możesz w miarę możliwości przejść do kontynuacji bazowych założeń `TASKS.md` (np. WakeWord/STT).
+2. Wyśledź notatki w dokumencie `docs/auto_discovery_rfc.md`. 
+3. Twoim zadaniem będzie wdrożenie własnego, natywnego protokołu UDP ucinającego potrzebę wpisywania adresów IP (Zero-Conf) i zaktualizowanie skryptu kompilującego tak, aby sam wklepywał JSON z gotowym wygenerowanym profilem zamiast `.env.example`. Masz już gotowy plan i zgodę użytkownika na działanie.
