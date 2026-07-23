@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.INFO)
 DISCOVERY_PORT = 8002
 PING_MSG = b"REGIS_DISCOVERY_PING"
 
-def test_ping(ip):
+def ping_device(ip):
     logging.info(f"Test pingu do: {ip}")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -24,6 +24,6 @@ def test_ping(ip):
         sock.close()
     return False
 
-test_ping("255.255.255.255")
-test_ping("192.168.0.255")
-test_ping("192.168.0.119")  # Unicast bezpośrednio do malinki
+ping_device("255.255.255.255")
+ping_device("192.168.0.255")
+ping_device("192.168.0.119")  # Unicast bezpośrednio do malinki
