@@ -4,21 +4,26 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Wdrożenie pyproject.toml i paczek extras)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Dodanie `pyproject.toml` z extras)
 
 ### Co zostało zrobione
 
-Zrealizowano trzeci punkt z długu architektonicznego: **Dodanie `pyproject.toml` z extras**. System został przełączony z tradycyjnego wywoływania skryptów Pythonem na instalowalny pakiet środowiska wirtualnego, z opcjonalnymi zależnościami dla poszczególnych komponentów.
+Zrealizowano trzeci punkt z długu architektonicznego: **Dodanie `pyproject.toml` z grupami opcjonalnych zależności (extras)**. Projekt przeszedł z modelu pojedynczego `requirements.txt` na model instalowalnego pakietu `regis-core`.
 
-**Zaktualizowane pliki:**
-- `pyproject.toml` — stworzono plik z pięcioma grupami: `[controller]`, `[worker]`, `[satellite]`, `[dev]`, `[all]`. Skonfigurowano w nim punkty wejścia CLI.
-- `requirements.txt` — przebudowano tak, by delegował zadanie do setuptools przez: `-e .[all]`, zachowując kompatybilność z `deploy_to_pi.bat`.
-- `apps/controller/main.py` — dodano funkcję `start()` dla polecenia `regis-controller`.
-- `apps/worker/node.py` — dodano podstawową obsługę funkcji `start()` dla polecenia `regis-worker`.
-- `apps/terminal/main.py` — używany poprzez punkt wejścia `regis-terminal`.
+**Nowe i zaktualizowane pliki:**
+- `pyproject.toml` — nowy plik; definiuje pakiet `regis-core`, `requires-python = ">=3.11"`, 5 grup extras: `[controller]`, `[worker]`, `[satellite]`, `[dev]`, `[all]` oraz CLI entry pointy.
+- `requirements.txt` — zastąpiony jedną linią `-e .[all]`; zachowuje pełną kompatybilność wsteczną.
+- `apps/controller/main.py` — dodano funkcję `start()` jako CLI entry point dla `regis-controller`.
+- `apps/worker/node.py` — dodano funkcję `start()` jako CLI entry point dla `regis-worker` (placeholder do czasu Rejestru Encji).
+- `apps/terminal/main.py` — funkcja `main()` już istniała; bez zmian.
+
+**Podział zależności (finalna decyzja):**
+- `[dev]` zawiera: `rich`, `questionary`, `pytest` — terminal CLI jest narzędziem deweloperskim, nie osobną warstwą.
+- `deploy_to_pi.bat` — bez zmian, odkładany do etapu Rejestru Encji.
 
 ### Stan testów
 `pytest tests/ -v` — 5/5 PASSED.
+`pip install -e .[all]` — instalacja przebiegła pomyślnie.
 
 ---
 
@@ -26,12 +31,14 @@ Zrealizowano trzeci punkt z długu architektonicznego: **Dodanie `pyproject.toml
 
 ```
 apps/
-├── controller/          ← Aktywny daemon RPi5 (FastAPI router, dostępny również z polecenia regis-controller)
-├── worker/              ← Węzeł Roboczy (LLM + STT, bez HTTP)
+├── controller/          ← Aktywny daemon RPi5 (FastAPI router) + entry point start()
+├── worker/              ← Węzeł Roboczy (LLM + STT, bez HTTP) + entry point start()
 ├── satellite/           ← w budowie
-└── terminal/            ← działa, dostępny również z polecenia regis-terminal
-core/                    ← Logika (bez hardcode'ów IP RPi5)
-data/                    ← Pliki konfiguracyjne (z adresami IP w settings.json)
+└── terminal/            ← działa, bez zmian
+core/                    ← Logika (bez hardcode'ów IP)
+data/                    ← Pliki konfiguracyjne (adresy IP w settings.json)
+pyproject.toml           ← NOWY: definicja pakietu + extras + CLI entry pointy
+requirements.txt         ← Zaktualizowany: deleguje do pyproject.toml (-e .[all])
 ```
 
 ---
@@ -41,7 +48,7 @@ data/                    ← Pliki konfiguracyjne (z adresami IP w settings.json
 1. **[DONE]** Rozdzielenie `apps/server/main.py` na Kontroler i Węzeł Roboczy
 2. **[DONE]** Przeniesienie hardcode'owanych adresów IP do `data/settings.json`
 3. **[DONE]** Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`)
-4. **[ARCH]** Implementacja Rejestru Encji (Satelity i Węzły rejestrują się w Kontrolerze z metadanymi) — tu WorkerNode staje się osobnym procesem HTTP
+4. **[KOLEJNE]** Implementacja Rejestru Encji (Satelity i Węzły rejestrują się w Kontrolerze z metadanymi) — tu WorkerNode staje się osobnym procesem HTTP
 5. **[ARCH]** Implementacja Spatial Context Filtering
 
 ---
@@ -49,6 +56,6 @@ data/                    ← Pliki konfiguracyjne (z adresami IP w settings.json
 ## Kroki Startowe dla Następnego Agenta
 
 1. Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).
-2. Pamiętaj, że projekt jest teraz instalowalnym pakietem opartym o `pyproject.toml`.
-3. Następne zadanie z backlogu to: **Implementacja Rejestru Encji**. Węzeł roboczy ma stać się zintegrowanym systemem z API, a Kontroler nie będzie go już importować lokalnie, a zarządzać nim i odpytywać.
-4. Zmiana wymaga dokładnego planowania i konsultacji z użytkownikiem, zgodnie z procedurą w MANIFEST.md.
+2. Projekt ma teraz `pyproject.toml`. Instalacja środowiska: `pip install -e ".[all]"` lub `pip install -r requirements.txt` (oba działają).
+3. Następne zadanie z backlogu to: **Implementacja Rejestru Encji**. Jest to duża zmiana architektoniczna — WorkerNode musi stać się osobnym procesem HTTP, który rejestruje się w Kontrolerze. Opis w `docs/MANIFEST.md` (sekcja 4) i `docs/ONBOARDING.md` (uwaga architektoniczna w sekcji `apps/controller/`).
+4. Przed przejściem do implementacji Rejestru Encji **koniecznie zaplanuj zmiany i uzgodnij z użytkownikiem** — to fundamentalna zmiana modelu komunikacji między komponentami.
