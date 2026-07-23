@@ -4,7 +4,7 @@ import requests
 from core.exceptions import LLMConnectionError
 
 class RemoteClient:
-    def __init__(self, base_url: str = "http://192.168.0.119:8000"):
+    def __init__(self, base_url: str = "http://127.0.0.1:8000"):
         self.base_url = base_url
         self.model_name = "Serwer Regis"
         self.tier = "remote"

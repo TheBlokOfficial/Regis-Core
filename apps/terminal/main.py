@@ -77,7 +77,8 @@ def main():
             
         elif mode_choice == "remote":
             from core.remote_client import RemoteClient
-            client = RemoteClient(base_url="http://192.168.0.119:8000")
+            server_url = settings.get("server_url", "http://127.0.0.1:8000")
+            client = RemoteClient(base_url=server_url)
             cli.run_remote_loop(client)
 
 

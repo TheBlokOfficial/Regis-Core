@@ -8,10 +8,7 @@ import datetime
 from core.exceptions import LLMConnectionError
 from core.stream_parser import StreamingTokenParser
 from core.schemas import BASE_TOOLS_SCHEMA, render_tools_for_prompt
-
-OLLAMA_BASE_URL = "http://192.168.0.119:11434"
-OLLAMA_CHAT_URL = f"{OLLAMA_BASE_URL}/api/chat"
-OLLAMA_TAGS_URL = f"{OLLAMA_BASE_URL}/api/tags"
+from core import config
 
 
 class LLMEngine:
@@ -42,8 +39,10 @@ class LLMEngine:
     @staticmethod
     def get_available_models() -> list[str]:
         """Pobiera z lokalnej instancji Ollamy listę dostępnych modeli."""
+        settings = config.load_settings()
+        tags_url = f"{settings.get('ollama_url', 'http://127.0.0.1:11434')}/api/tags"
         try:
-            response = requests.get(OLLAMA_TAGS_URL, timeout=5)
+            response = requests.get(tags_url, timeout=5)
             response.raise_for_status()
             data = response.json()
             return [model['name'] for model in data.get('models', [])]
@@ -200,6 +199,9 @@ class LLMEngine:
         if self.tier == "butler":
             return self._generate_response_nlu(messages, prompt, tools_registry, on_tool_call, on_content_token)
 
+        settings = config.load_settings()
+        chat_url = f"{settings.get('ollama_url', 'http://127.0.0.1:11434')}/api/chat"
+
         # Pętla ReAct
         max_iterations = 15
         iteration_count = 0
@@ -225,7 +227,7 @@ class LLMEngine:
             }
 
             try:
-                response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=300, stream=True)
+                response = requests.post(chat_url, json=payload, timeout=300, stream=True)
                 response.raise_for_status()
 
                 full_content = ""
@@ -302,6 +304,9 @@ class LLMEngine:
         Używa Structured Outputs (JSON Schema), aby jednym zapytaniem wydobyć intencję.
         Brak pętli ReAct, całkowicie deterministyczne wyjście.
         """
+        settings = config.load_settings()
+        chat_url = f"{settings.get('ollama_url', 'http://127.0.0.1:11434')}/api/chat"
+
         payload = {
             "model": self.model_name,
             "messages": messages,
@@ -324,7 +329,7 @@ class LLMEngine:
         }
         
         try:
-            response = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=30)
+            response = requests.post(chat_url, json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
             content = data.get("message", {}).get("content", "{}")
