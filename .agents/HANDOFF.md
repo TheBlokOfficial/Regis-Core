@@ -4,43 +4,39 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Implementacja: Sesja A)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Implementacja: Sesja B)
 
 ### Co zostało zrobione
 
-Zrealizowano Sesję A (Sprzątanie i weryfikacja bazy) zgodnie z dokumentem `docs/arch_restrukturyzacja_2025.md`.
+Zrealizowano Sesję B (Refaktoryzacja `regis_controller/main.py`) zgodnie z dokumentem `docs/arch_restrukturyzacja_2025.md`.
 
-1. Dodano brakujący plik `__init__.py` do katalogu `src/regis_satellite/`.
-2. Zweryfikowano brak pakietu `regis_terminal/` w `src/`. Usunięto nieaktualny entry point `regis-terminal` z `pyproject.toml`, aby zapobiec błędom budowania.
-3. Przeprowadzono testy `pytest` - ustalono wynik bazowy: 26 passed, 0 errors. Usunięto problem z brakującym fixture `ip` w skrypcie `test_pi_discovery.py` (skrypt diagnostyczny, nie unit test).
+1. Rozbito monolityczny `main.py` na podmoduły: `registry.py`, `tools.py`, `router.py`, `app.py`.
+2. Ograniczono `main.py` wyłącznie do 20-linijkowego entry pointu.
+3. Zachowano w 100% kompatybilne API zewnętrzne.
+4. Przeprowadzono testy `pytest` - wszystkie 26 przeszły pomyślnie.
 
 ---
 
 ## Aktualny Stan Kodu
 
-Baza kodu jest przygotowana do głównych prac restrukturyzacyjnych.
+Baza kodu ma wydzielony w pełni refaktoryzowany `regis_controller`. Jesteśmy gotowi do implementacji głównego węzła windowsowego (`regis_node`).
 
 ```text
 src/
 ├── core/                   ← biblioteka wspólna [BEZ ZMIAN]
 ├── integrations/           ← klient HA          [BEZ ZMIAN]
-├── regis_controller/       ← gotowe do refaktoryzacji
-│   └── main.py
+├── regis_controller/       ← zrefaktoryzowane (registry, router, tools, app, main)
 ├── regis_worker/           ← czeka na migrację do regis_node
-├── regis_satellite/        ← ma już __init__.py, czeka na migrację do regis_node
+├── regis_satellite/        ← czeka na migrację do regis_node
 ├── regis_cli/              ← czeka na aktualizację builders.py
 └── [regis_node/]           ← JESZCZE NIE ISTNIEJE
 ```
-
-Testy bazowe przed następnymi krokami: 26 passed, 0 errors.
-Projekt buduje się bez problemów po usunięciu śladów terminala.
 
 ---
 
 ## Kroki Startowe dla Następnego Agenta
 
 1. **Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).**
-2. **Przeczytaj `docs/arch_restrukturyzacja_2025.md`** — jesteśmy w trakcie wdrażania tego planu.
-3. **Zacznij od Sesji B** (Refaktoryzacja `regis_controller/main.py` na podmoduły: `registry`, `router`, `tools`, `app`).
-4. Upewnij się, że rozbicie `main.py` nie zmieni API usługi Kontrolera.
-5. Po zakończeniu refaktoryzacji puść testy `pytest`, upewniając się, że wynik się nie zmienił (nadal 26 passed, 0 errors).
+2. **Przeczytaj `docs/arch_restrukturyzacja_2025.md`** — jesteśmy przed głównym punktem, Sesją C.
+3. **Zacznij od Sesji C** (Stworzenie `regis_node/` - tray app Windows). Zaprojektuj wizarda, przenieś logikę z worker i satellite. 
+4. Pamiętaj, aby po wszystkim przeprowadzić testy `pytest`.
