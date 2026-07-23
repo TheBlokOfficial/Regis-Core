@@ -4,51 +4,69 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-22 — Restrukturyzacja Dokumentacji i Architektury)
-
-Ta sesja była w 100% dokumentacyjna. Żaden plik kodu nie został zmieniony.
+## Ostatnia Aktywność (Sesja 2026-07-23 — Rozdzielenie Controller / Worker)
 
 ### Co zostało zrobione
 
-**Nowe pliki dokumentacji:**
-- `docs/MANIFEST.md` — Manifest projektu. Definiuje filozofię, cele, architekturę (Dynamiczny Dispatcher, Persona Contract, Dwa Tryby Pracy) i rozstrzygnięte decyzje projektowe. **Najważniejszy plik w projekcie — czytaj jako pierwszy.**
-- `docs/ONBOARDING.md` — Mapa kodu. Opis każdego katalogu i pliku, przepływ danych od komendy użytkownika do zapalenia lampy, docelowy model dystrybucji (pyproject.toml + extras), aktualny workflow deweloperski.
-- `docs/AGENT_GUIDE.md` — Przewodnik dla agentów AI. Hierarchia lektury, protokół eskalacji decyzji architektonicznych, ostrzeżenie o skażeniu kontekstu (context contamination), mechanizm Architectural Decision Handoff, prawa zapisu do dokumentów, lista decyzji już podjętych.
+Zrealizowano krytyczny dług architektoniczny: **rozdzielenie `apps/server/main.py`** na Kontroler i Węzeł Roboczy. Żadna logika biznesowa nie została zmieniona — to było czyste, strukturalne cięcie kodu.
+
+**Nowe pliki:**
+- `apps/controller/__init__.py` — pusty init pakietu
+- `apps/controller/main.py` — FastAPI daemon (dawne `apps/server/main.py`). Inicjalizuje `HomeAssistantClient`, `ToolsRegistry` i `WorkerNode`. Deleguje inferencję do WorkerNode. Nie importuje już LLMEngine ani STTEngine bezpośrednio.
+- `apps/worker/__init__.py` — pusty init pakietu
+- `apps/worker/node.py` — klasa `WorkerNode`. Enkapsuluje `LLMEngine` + `STTEngine`. Interfejs: `handle_chat()`, `handle_audio()`, `clear_history()`. Nie zawiera żadnej logiki HTTP.
+
+**Usunięte katalogi:**
+- `apps/server/` — zastąpiony przez `apps/controller/`
+- `apps/boss_node/` — zastąpiony przez `apps/worker/`
 
 **Zaktualizowane pliki:**
-- `.agents/AGENTS.md` — Procedura startowa teraz wymaga czytania MANIFEST.md i AGENT_GUIDE.md jako pierwszych plików (przed HANDOFF.md). Procedura zamykania sesji teraz nakazuje zastępowanie (nie dopisywanie) HANDOFF.md. Usunięto obowiązek aktualizacji walkthrough.md.
+- `run_server.bat` — zmiana modułu z `apps.server.main` na `apps.controller.main`
+- `scripts/regis.service` — zmiana `ExecStart` na `apps.controller.main:app`
+- `docs/ONBOARDING.md` — opisy katalogów zsynchronizowane z nową strukturą
 
-### Kluczowe decyzje architektoniczne podjęte w tej sesji
+### Stan testów
+`pytest tests/ -v` — 5/5 PASSED (bez zmian w logice `core/`)
 
-1. **Dynamiczny Dispatcher zamiast statycznego Lokaj/Szef** — RPi5 jest Kontrolerem i węzłem fallback. Desktopy rejestrują się jako węzły robocze. Najlepszy dostępny węzeł dostaje ruch. Bezszwowa migracja kontekstu przy zmianie węzła.
+### Kluczowe decyzje podjęte w tej sesji
 
-2. **Trzy niezależne procesy:** `regis-controller` (singleton na RPi5), `regis-worker` (instalowany na dowolnym urządzeniu), `regis-satellite` (VAD + I/O, możliwie głupi klient).
-
-3. **Pipeline audio (rozstrzygnięte):** VAD na Satelicie → WakeWord na Węźle Roboczym (ESP32) lub lokalnie (desktop) → STT zawsze na Węźle Roboczym (standaryzacja jakości).
-
-4. **Dwa tryby Regisa (rozstrzygnięta decyzja produktowa):** Model 1.5B = deterministyczny parser NLU (Baseline). Model 14B = pełny agent ReAct (Agent). Przepaść między nimi jest akceptowalna i wynika z naturalnej korelacji użycia.
-
-5. **Rejestr Encji z metadanymi:** Satelity i Węzły rejestrują się w Kontrolerze z metadanymi (m.in. `room`). Kontroler używa `room` do Spatial Context Filtering — model dostaje tylko urządzenia z danego pokoju.
-
-6. **Protokół eskalacji decyzji architektonicznych:** Gdy agent roboczy natrafi na decyzję architektoniczną po długiej sesji kodowania (skażony kontekst), wyekstrahowuje problem do HANDOFF.md w formacie `DECYZJA_ARCHITEKTONICZNA` i kończy sesję. Użytkownik otwiera świeżą rozmowę do dyskusji.
-
-7. **Cykl życia dokumentów:** HANDOFF.md zastępowany co sesję (git przechowuje historię). TASKS.md rośnie, archiwizowany tylko na polecenie użytkownika.
-
-### Dług Architektoniczny (do implementacji w przyszłości — kolejność ma znaczenie)
-
-1. **[KRYTYCZNE] Rozdzielenie `apps/server/main.py`** na Kontroler i Węzeł Roboczy — to odblokuje wszystkie kolejne kroki.
-2. **Przeniesienie hardcode'owanych adresów IP** do `data/settings.json` (lista w `docs/ONBOARDING.md`).
-3. **Dodanie `pyproject.toml` z extras** (`[controller]`, `[worker]`, `[satellite]`).
-4. **Komendy `install-service`** dla Satelity i Węzła Roboczego.
+1. **WorkerNode importowany bezpośrednio przez Kontroler** — separacja procesów przez API HTTP to następny krok (Rejestr Encji). W docstringu `WorkerNode` i `controller/main.py` są komentarze architektoniczne wskazujące ten kierunek.
+2. **Nazwy semantycznie poprawne**: `controller` (nie `server`), `worker` (nie `boss_node`).
+3. **Błąd STT obsługiwany inaczej:** w starym kodzie serwer wysyłał `{"type": "error"}` bezpośrednio w wątku. W nowym `WorkerNode.handle_audio()` zwraca string z komunikatem błędu, a kontroler sprawdza go i emituje odpowiednie zdarzenie SSE — zachowanie zewnętrzne identyczne.
 
 ---
 
 ## Aktualny Stan Kodu
 
-Kod jest niezmieniony względem poprzedniej sesji. Działa według opisów w HANDOFF.md z poprzedniej sesji (scentralizowane STT, pętla ReAct, Structured Outputs dla 1.5B). Dokumentacja jest teraz kompletna i aktualna.
+```
+apps/
+├── controller/          ← Aktywny daemon RPi5 (FastAPI router)
+│   ├── __init__.py
+│   └── main.py
+├── worker/              ← Węzeł Roboczy (LLM + STT, bez HTTP)
+│   ├── __init__.py
+│   └── node.py
+├── satellite/           ← w budowie
+└── terminal/            ← działa, bez zmian
+```
+
+Deployment: `deploy_to_pi.bat` → SSH → `systemctl restart regis.service` → uruchamia `apps/controller/main.py`.
+
+---
+
+## Dług Architektoniczny (kolejność ma znaczenie)
+
+1. **[KRYTYCZNE → DONE]** ~~Rozdzielenie `apps/server/main.py` na Kontroler i Węzeł Roboczy~~
+2. **[KOLEJNE]** Przeniesienie hardcode'owanych adresów IP do `data/settings.json` (lista w `docs/ONBOARDING.md`)
+3. **[KOLEJNE]** Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`)
+4. **[ARCH]** Implementacja Rejestru Encji (Satelity i Węzły rejestrują się w Kontrolerze z metadanymi) — tu WorkerNode staje się osobnym procesem HTTP
+5. **[ARCH]** Implementacja Spatial Context Filtering
+
+---
 
 ## Kroki Startowe dla Następnego Agenta
 
-1. Przeczytaj `docs/MANIFEST.md` — to nowy najważniejszy plik, zastępuje stary ARCHITECTURE.md jako główny autorytet.
-2. Sprawdź czy zadanie dotyczy kodu czy architektury. Jeśli kodu — przeczytaj `docs/ONBOARDING.md` i działaj. Jeśli architektury — wróć do rozmowy z użytkownikiem.
-3. Dług architektoniczny jest jasno opisany powyżej — nie zaczynaj od niego bez wyraźnego polecenia.
+1. Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).
+2. Kod po tej sesji jest podzielony — Kontroler (`apps/controller/`) i Węzeł Roboczy (`apps/worker/`) istnieją jako osobne pakiety ale jeszcze komunikują się przez import.
+3. Następne zadanie z backlogu: przeniesienie hardcode'owanych adresów IP do `data/settings.json`. Lista miejsc do zmiany w `docs/ONBOARDING.md § Gdzie są na stałe wpisane adresy IP`.
+4. NIE zaczynaj od Rejestru Encji bez dyskusji z użytkownikiem — to duże zadanie wymagające decyzji o protokole komunikacji HTTP między Controller a Worker.

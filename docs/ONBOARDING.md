@@ -12,6 +12,10 @@ Zanim zaczniesz czytać ten dokument, upewnij się, że zapoznałeś się z `doc
 regis-core/
 │
 ├── apps/           ← Punkty wejścia — uruchamialne aplikacje
+│   ├── controller/ ← Kontroler: lekki router API + integracja HA (daemon RPi5)
+│   ├── worker/     ← Węzeł Roboczy: LLMEngine + STTEngine, bez logiki HTTP
+│   ├── satellite/  ← Satelita audio (VAD + I/O)
+│   └── terminal/   ← Terminal CLI (satelita tekstowa, deweloperska)
 ├── core/           ← Serce systemu — współdzielona logika
 ├── integrations/   ← Klienci zewnętrznych API (świat zewnętrzny)
 ├── data/           ← Konfiguracja, logi, prompty (wykluczone z Git)
@@ -32,27 +36,37 @@ regis-core/
 
 Każdy podkatalog to osobna, niezależna aplikacja. Uruchamiane przez `python -m apps.<nazwa>`.
 
-### `apps/server/` — Serwer API (FastAPI)
-**Rola:** Demon uruchamiany na Raspberry Pi 5. Wystawia REST API, z którym łączą się Satelity.
+### `apps/controller/` — Kontroler (FastAPI)
+**Rola:** Lekki daemon uruchamiany na Raspberry Pi 5. Mózg systemu: wystawia REST API dla Satelit, zarządza integracją z Home Assistant i deleguje inferencję do Węzła Roboczego.
 
 **Plik:** `main.py`
-- Przy starcie ładuje konfigurację (`config.py`), inicjalizuje `LLMEngine`, `HomeAssistantClient`, `ToolsRegistry` i `STTEngine`.
+- Przy starcie ładuje konfigurację (`config.py`), inicjalizuje `HomeAssistantClient`, `ToolsRegistry` i `WorkerNode`.
 - Wystawia trzy endpointy:
   - `POST /v1/chat/stream` — przyjmuje wiadomość tekstową, zwraca odpowiedź modelu jako **Server-Sent Events (SSE)**. Każdy token/myśl/wywołanie narzędzia to osobne zdarzenie strumieniowe.
-  - `POST /v1/chat/audio_stream` — przyjmuje plik `.wav`, przepuszcza go przez STT (Whisper), a transkrypcję przez LLM. Reszta jak wyżej.
-  - `POST /v1/clear_history` — resetuje historię konwersacji modelu.
+  - `POST /v1/chat/audio_stream` — przyjmuje plik `.wav`, przekazuje do Węzła Roboczego (STT → LLM). Reszta jak wyżej.
+  - `POST /v1/clear_history` — resetuje historię konwersacji węzła roboczego.
 
-> **Uwaga architektoniczna:** Ten plik pełni dziś rolę i Kontrolera i Węzła Roboczego — jest to znany dług techniczny opisany w `MANIFEST.md § 7`.
+> **Uwaga architektoniczna:** Kontroler na tym etapie importuje `WorkerNode` bezpośrednio. Po wdrożeniu Rejestru Encji (`[ARCH]` w TASKS.md) WorkerNode stanie się osobnym procesem HTTP, a Kontroler będzie go tylko wykrywać i routować do niego żądania.
+
+---
+
+### `apps/worker/` — Węzeł Roboczy
+**Rola:** Hostuje model LLM i silnik STT. Odpowiada wyłącznie za inferencję. Nie zawiera żadnej logiki HTTP ani integracji z Home Assistant.
+
+**Plik:** `node.py`
+- Klasa `WorkerNode` — inicjalizuje `LLMEngine` i `STTEngine`.
+- Interfejs publiczny: `handle_chat()`, `handle_audio()`, `clear_history()`.
+- `handle_audio()` wewnętrznie: STT (Whisper) → `handle_chat()` → LLM.
 
 ---
 
 ### `apps/terminal/` — Terminal CLI (Satelita tekstowa)
-**Rola:** Interfejs deweloperski. Działa jako "Satelita tekstowa" — można go podłączyć lokalnie do `LLMEngine` (tryb `prod`) lub zdalnie do serwera przez SSE (tryb `remote`).
+**Rola:** Interfejs deweloperski. Działa jako "Satelita tekstowa" — można go podłączyć lokalnie do `LLMEngine` (tryb `prod`) lub zdalnie do Kontrolera przez SSE (tryb `remote`).
 
 **Plik:** `main.py`
 - Wyświetla główne menu (tryb `prod` lub `remote`).
 - W trybie `prod`: inicjalizuje własną instancję `LLMEngine` i uruchamia pętlę CLI lokalnie.
-- W trybie `remote`: tworzy `RemoteClient` i łączy się z `apps/server/` przez HTTP/SSE.
+- W trybie `remote`: tworzy `RemoteClient` i łączy się z `apps/controller/` przez HTTP/SSE.
 
 **Plik:** `cli.py`
 - Cały wizualny interfejs użytkownika w terminalu (biblioteki `rich`, `questionary`).
@@ -62,12 +76,7 @@ Każdy podkatalog to osobna, niezależna aplikacja. Uruchamiane przez `python -m
 ---
 
 ### `apps/satellite/` — Satelita Audio *(w budowie)*
-**Rola:** Moduł przechwytywania i odtwarzania dźwięku. Nagrywa audio z mikrofonu i wysyła je do serwera API (`/v1/chat/audio_stream`).
-
----
-
-### `apps/boss_node/` — Węzeł Roboczy Desktop *(w budowie)*
-**Rola:** Przyszła usługa uruchamiana na komputerze desktopowym z GPU. Ma zgłaszać gotowość do pracy Kontrolerowi i hostować mocniejszy model LLM.
+**Rola:** Moduł przechwytywania i odtwarzania dźwięku. Nagrywa audio z mikrofonu i wysyła je do Kontrolera (`/v1/chat/audio_stream`).
 
 ---
 
@@ -187,7 +196,7 @@ Plik konfiguracyjny `systemd` do uruchamiania `apps/server/` jako daemona system
 
 | Plik | Co robi |
 |---|---|
-| `run_server.bat` | Uruchamia `apps/server/` na Windowsie (dev) |
+| `run_server.bat` | Uruchamia `apps/controller/` na Windowsie (dev) |
 | `run_terminal.bat` | Uruchamia `apps/terminal/` na Windowsie |
 | `deploy_to_pi.bat` | Wysyła aktualne pliki na Raspberry Pi przez SSH i restartuje daemona |
 | `cleanup.sh` | Usuwa pliki `__pycache__` i `.pyc` |

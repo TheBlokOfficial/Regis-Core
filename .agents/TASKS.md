@@ -34,7 +34,7 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [ ] Integracja systemu WakeWord (oczekiwanie na paczki próbek użytkownika do modelu).
 - [/] Integracja systemu Speech-To-Text i Text-To-Speech (Zrealizowano scentralizowane STT na serwerze API).
 - [x] Restrukturyzacja dokumentacji projektu: stworzenie MANIFEST.md, ONBOARDING.md, AGENT_GUIDE.md i aktualizacja protokołów w AGENTS.md.
-- [ ] [ARCH] Rozdzielenie `apps/server/main.py` na Kontroler i Węzeł Roboczy (krytyczny dług architektoniczny).
+- [x] [ARCH] Rozdzielenie `apps/server/main.py` na Kontroler i Węzeł Roboczy (krytyczny dług architektoniczny).
 - [ ] [ARCH] Przeniesienie hardcode'owanych adresów IP do `data/settings.json`.
 - [ ] [ARCH] Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`).
 - [ ] [ARCH] Implementacja Rejestru Encji (Satelity i Węzły rejestrują się w Kontrolerze z metadanymi).
