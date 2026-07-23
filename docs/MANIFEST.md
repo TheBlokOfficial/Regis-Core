@@ -168,8 +168,8 @@ Regis jest **charakterny, rzeczowy i bezpośredni.** Nie owija w bawełnę. Prio
 Mimo że `apps/controller/` i `apps/worker/` są dziś rozdzielnymi procesami API połączonymi przez Rejestr Encji, cały projekt zderzył się ze ścianą monolitycznej dystrybucji kodu i plików konfiguracyjnych.
 
 **Problem Monolitu i Konfiguracji (Priorytet Architektoniczny)**
-Obecnie wszystkie procesy, chociaż uruchamiane oddzielnie, wywodzą się z jednego surowego drzewa i dzielą zcentralizowane pliki konfiguracyjne (np. `data/settings.json`). Przesyłanie projektu na węzły brzegowe (takie jak Malinka) skutkuje nadpisywaniem tożsamości.
-Szczegółowy opis tego krytycznego długu technologicznego i docelowych zaleceń (stworzenie dedykowanych profili konfiguracyjnych oraz binarnych pakietów instalacyjnych) znajduje się w dokumencie: `docs/architectural_debt_report.md`. To priorytet na drodze ewolucji projektu. *(Zrealizowano - wdrożono profile `.env` i `.whl`)*.
-
+**Rozwiązany Dług Dystrybucyjny i Konfiguracyjny (Zrealizowano)**
+W początkowej fazie projektu wszystkie procesy dzieliły zcentralizowane pliki konfiguracyjne, a transfer kodu źródłowego na węzły brzegowe prowadził do nadpisywania ich tożsamości. Problem ten, opisany w raporcie `docs/architectural_debt_report.md`, został już pomyślnie i permanentnie rozwiązany. 
+System został rozbity na w pełni wyizolowane instancje — konfiguracja opiera się teraz na profilach ładowanych z plików `.env` (np. `settings.rpi5-worker.json`), a przestarzałą dystrybucję kodu zastąpiono hermetycznymi paczkami instalacyjnymi (`.whl` dla Linuksa oraz `.exe` przez PyInstaller dla Windows). To ostatecznie uczyniło architekturę modularną.
 **Problem Hardkodowania IP i Auto-Konfiguracji (Oczekujące na realizację)**
 Obecnie rozwiązano problem nadpisywania tożsamości urządzeń, ale proces wciąż posiada defekt "hardkodowanych IP". Wymusza to ręczne ustawianie adresu IP Malinki na każdym urządzeniu satelitarnym. Został przygotowany dokument `docs/auto_discovery_rfc.md` szczegółowo opisujący plan wdrożenia protokołu **Zero-Conf (UDP Broadcast)** oraz zautomatyzowanego generowania plików po kompilacji. Będzie to kolejny kluczowy krok w ewolucji systemu.
