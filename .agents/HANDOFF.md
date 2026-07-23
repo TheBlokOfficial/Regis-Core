@@ -4,40 +4,39 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Porządki Architektoniczne, Portable App & CLI)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Przejście na Architekturę 'src' layout)
 
 ### Co zostało zrobione
 
-Podczas tej sesji skupiliśmy się na potężnym sprzątaniu długu architektonicznego wynikającego z nadmiaru folderów i nieustrukturyzowanych plików w głównym katalogu projektu:
-1. **Wypłaszczenie Monorepo (No-Apps):** Całkowicie zlikwidowano sztuczny katalog zbiorczy `apps/`. Wszystkie aplikacje lądują teraz w katalogu głównym.
-2. **Standaryzacja Nazewnictwa (regis_):** Foldery aplikacyjne otrzymały ujednolicone przedrostki (np. `regis_controller`, `regis_satellite`), co z automatu ładnie grupuje je alfabetycznie i oddziela wizualnie od rdzenia (`core/`). Zaktualizowano wszystkie importy w kodzie na nowy standard.
-3. **Architektura Windows Portable App:** PyInstaller ładuje teraz paczki używając trybu folderowego (`--onedir`). Kompilator sam wypluwa gotowe struktury `Regis-Satellite\system\` (gdzie chowane są pliki .exe) oraz `Regis-Satellite\data\` dla plików `.json`. Użytkownik widzi tylko pojedynczy, estetyczny plik `Uruchom.bat` (wyposażony w mechanizm zapobiegający od razu zamykaniu okna w razie błędu - `Smart Pause`).
-4. **Stworzenie dedykowanego menedżera `regis_cli`:** Pozbyliśmy się brzydkich, potężnych skryptów `make-windows.bat` i `make-raspberry.bat`. Powstał 5. moduł o nazwie `regis_cli` (z wykorzystaniem bibliotek `rich` i `questionary`). Działa on jako potężny, pythonowy silnik dla interaktywnego CLI w Terminalu. W głównym folderze znajduje się tylko minimalny aktywator `regis.bat`.
-5. **Krytyczny fix UDP:** Serwer automatycznego wykrywania (Auto-Discovery) nie rzuca już logów do na sztywno wpisanych linuksowych ścieżek `/home/theblok/`, ale korzysta z biblioteki `logging`. Usunięto błędy dla środowiska Windows oraz objęto serwer pętlą samo-reanimującą na wypadek błędu bindowania gniazda.
-6. **"Ukrywanie" w Windows:** Ponieważ docelowe przeniesienie kodu do struktury `src/` zostało przesunięte na kolejną sesję, doraźnie nadano atrybuty Windows Hidden (`attrib +h`) zbędnym folderom konfiguracyjnym w głównym widoku, co zapewniło użytkownikowi natychmiastowy "Zen Mode".
+Podczas tej sesji sfinalizowano wdrożenie "src layout", co stanowiło absolutny priorytet:
+1. **Wdrożenie src layout:** Utworzono katalog `src/` w głównym katalogu projektu i przeniesiono do niego wszystkie pakiety źródłowe (`core/`, `integrations/`, `regis_cli/`, `regis_controller/`, `regis_satellite/`, `regis_terminal/`, `regis_worker/`).
+2. **Czyszczenie atrybutów:** Zgodnie z nową architekturą, pliki konfiguracyjne w katalogu głównym projektu przestały być ukrywane (zdjęto atrybut Hidden).
+3. **Aktualizacja Konfiguracji:** Dostosowano pliki konfiguracyjne do nowej ścieżki pakietów: `pyproject.toml` (wskazuje teraz na `where = ["src"]`), `pytest.ini` (`pythonpath = src`), oraz startowy skrypt `regis.bat` (aktualizacja `PYTHONPATH`).
+4. **Aktualizacja PyInstallera:** W module `regis_cli/builders.py` podmieniono parametry kompilacji (`--paths src` oraz ścieżki do plików `main.py` czy `node.py`).
 
 ### Stan testów
 
-Kompilator przeszedł testy składni gładko. Struktura wygenerowanych projektów CLI i dystrybucji Windowsowej jest poprawna. Oczekuje się jedynie przetestowania `regis.bat` ze względu na to, że moduł zbudowano pod koniec sesji.
+Paczki `.whl` budują się prawidłowo z nową strukturą. Testy `pytest` wykonują się bez problemów z odnalezieniem ścieżek importu (26 testów przeszło z sukcesem, wystąpił 1 błąd w `test_pi_discovery.py` ze względu na błędnie zadeklarowaną przestarzałą metodę testu, który jest niezwiązany ze zmianą struktury i nie był dotykany).
 
 ---
 
 ## Aktualny Stan Kodu
 
 ```text
-(Główny folder projektu — w dużej części sztucznie ukryty przed widokiem z zewnątrz)
-├── core/
-├── integrations/
-├── regis_cli/             ← [NOWY] Piąty moduł zarządzający projektem
-├── regis_controller/
-├── regis_satellite/
-├── regis_terminal/
-├── regis_worker/
+(Główny folder projektu — w pełni widoczny, zachowujący czysty podział na kod i konfigurację)
+├── src/                   ← [NOWY] Cały kod źródłowy projektu
+│   ├── core/
+│   ├── integrations/
+│   ├── regis_cli/
+│   ├── regis_controller/
+│   ├── regis_satellite/
+│   ├── regis_terminal/
+│   └── regis_worker/
 ├── tests/
-├── deploy_to_pi.bat       ← Obsolete? Przejęty przez regis_cli. Do usunięcia w next patch.
-├── regis.bat              ← [NOWY] Jedyny plik wejściowy dla CLI zarządzającego
-├── pyproject.toml         ← Wskazuje zaktualizowane importy `regis_`
-└── ... 
+├── pyproject.toml         ← Zaktualizowany
+├── pytest.ini             ← Zaktualizowany
+├── regis.bat              ← Zaktualizowany
+└── ...
 ```
 
 ---
@@ -45,5 +44,5 @@ Kompilator przeszedł testy składni gładko. Struktura wygenerowanych projektó
 ## Kroki Startowe dla Następnego Agenta
 
 1. **Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).**
-2. **UWAGA - PRIORYTET NR 1:** Użytkownik zatwierdził przeniesienie struktury Monorepo na profesjonalny, pythonowy **"src layout"** (katalog `src/` wchłaniający `core/` oraz `regis_...`). Jest to absolutnie pierwsze zadanie, którym musisz się zająć. Pamiętaj, aby "odkryć" ukryte wcześniej pliki w root (usunięcie atrybutu Hidden), zmienić ścieżki w `pyproject.toml`, zaktualizować flagi PyInstallera w `regis_cli/builders.py` oraz testy w `pytest.ini`. Twój poprzednik przygotował gotowy `implementation_plan.md` pod to wdrożenie w plikach systemowych (.gemini), ale użytkownik nakazał realizację dopiero Tobie. Przeczytaj `implementation_plan.md` i przystąp do działania.
-3. Potem możesz zająć się faktycznym rozwojem możliwości AI systemu Regis (Long-Term Memory).
+2. Architektura "src layout" została pomyślnie zaimplementowana i działa. Przejdź do głównego zadania.
+3. Sprawdź `TASKS.md` — najważniejszym niezrealizowanym jeszcze zadaniem jest **zaprojektowanie i wdrożenie nowej Pamięci Długoterminowej (Long-Term Memory)** (np. wektorowej) dla systemu Regis. Przed rozpoczęciem, zapoznaj się z problematyką.

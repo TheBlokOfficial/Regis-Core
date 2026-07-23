@@ -45,4 +45,4 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Refaktoryzacja monorepo: wypłaszczenie i standaryzacja przedrostków `regis_` w celu poprawy przejrzystości.
 - [x] Implementacja architektury Portable App (wydzielone foldery `system/` i `data/`) dla dystrybucji Windows wraz z instrukcją `Smart Pause`.
 - [x] Stworzenie i integracja pełnoprawnego modułu zarządzającego projektem `regis_cli` w Pythonie (zastąpienie starych skryptów wsadowych `.bat`).
-- [ ] Zmiana architektury projektu na standard "src layout" (katalog `src/` grupujący cały kod źródłowy dla poprawy czytelności).
+- [x] Zmiana architektury projektu na standard "src layout" (katalog `src/` grupujący cały kod źródłowy dla poprawy czytelności).

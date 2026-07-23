@@ -49,5 +49,5 @@ regis-worker     = "regis_worker.node:start"
 regis-terminal   = "regis_terminal.main:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["core*", "integrations*", "regis_*"]

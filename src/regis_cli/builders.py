@@ -10,16 +10,16 @@ def build_portable_windows():
     console.print(f"[header]========================================================[/header]\n")
 
     modules = [
-        {"name": "regis-satellite", "folder": "Regis-Satellite", "script": "regis_satellite/main.py", "title": "Regis Satellite", "profile": "satellite"},
-        {"name": "regis-worker", "folder": "Regis-Worker", "script": "regis_worker/node.py", "title": "Regis Worker", "profile": "worker"},
-        {"name": "regis-terminal", "folder": "Regis-Terminal", "script": "regis_terminal/main.py", "title": "Regis Terminal", "profile": "terminal"},
+        {"name": "regis-satellite", "folder": "Regis-Satellite", "script": "src/regis_satellite/main.py", "title": "Regis Satellite", "profile": "satellite"},
+        {"name": "regis-worker", "folder": "Regis-Worker", "script": "src/regis_worker/node.py", "title": "Regis Worker", "profile": "worker"},
+        {"name": "regis-terminal", "folder": "Regis-Terminal", "script": "src/regis_terminal/main.py", "title": "Regis Terminal", "profile": "terminal"},
     ]
 
     for i, mod in enumerate(modules, 1):
         console.print(f"[info][{i}/3] Budowanie {mod['name']}...[/info]")
         
         cmd = [
-            "pyinstaller", "--paths", ".", "--name", mod["name"],
+            "pyinstaller", "--paths", "src", "--name", mod["name"],
             "--onedir", "--clean", mod["script"]
         ]
         result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
