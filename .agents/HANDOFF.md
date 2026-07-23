@@ -4,32 +4,36 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Implementacja: Sesja B)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Implementacja: Sesja C - Częściowo Zakończona)
 
 ### Co zostało zrobione
 
-Zrealizowano Sesję B (Refaktoryzacja `regis_controller/main.py`) zgodnie z dokumentem `docs/arch_restrukturyzacja_2025.md`.
+Zrealizowano kod źródłowy dla Sesji C (Stworzenie `regis_node`), jednak występują problemy z finalnym uruchomieniem na platformie docelowej.
 
-1. Rozbito monolityczny `main.py` na podmoduły: `registry.py`, `tools.py`, `router.py`, `app.py`.
-2. Ograniczono `main.py` wyłącznie do 20-linijkowego entry pointu.
-3. Zachowano w 100% kompatybilne API zewnętrzne.
-4. Przeprowadzono testy `pytest` - wszystkie 26 przeszły pomyślnie.
+1. Utworzono aplikację `regis_node`.
+2. Zintegrowano procesy `regis_worker` i `regis_satellite` jako podprocesy zarządzane przez zasobnik.
+3. Utworzono konfigurator `wizard.py`.
+4. Przebudowano skrypt buildera CLI (`builders.py`), aby generował jedną paczkę `Regis-Node`. Naprawiono konflikty ścieżek na Windows oraz brakujące moduły `pystray` dla PyInstallera.
+5. Zaktualizowano zależności w `pyproject.toml`.
+6. Testy `pytest` przechodzą prawidłowo (logika kontrolera nienaruszona).
+
+**Zidentyfikowany Błąd Do Rozwiązania:** 
+Kompilacja przez PyInstaller działa, proces konfiguratora (wizard) w konsoli również odpala się poprawnie, jednak w momencie próby ukrycia konsoli lub wejścia do pętli `pystray`, proces zawiesza się lub crashuje się na etapie przejścia z wizarda do paska zadań.
 
 ---
 
 ## Aktualny Stan Kodu
 
-Baza kodu ma wydzielony w pełni refaktoryzowany `regis_controller`. Jesteśmy gotowi do implementacji głównego węzła windowsowego (`regis_node`).
-
 ```text
 src/
 ├── core/                   ← biblioteka wspólna [BEZ ZMIAN]
 ├── integrations/           ← klient HA          [BEZ ZMIAN]
-├── regis_controller/       ← zrefaktoryzowane (registry, router, tools, app, main)
-├── regis_worker/           ← czeka na migrację do regis_node
-├── regis_satellite/        ← czeka na migrację do regis_node
-├── regis_cli/              ← czeka na aktualizację builders.py
-└── [regis_node/]           ← JESZCZE NIE ISTNIEJE
+├── regis_controller/       ← refaktoryzowane (registry, router, tools, app, main)
+├── regis_node/             ← W TRAKCIE (wymaga debugowania Pystray w środowisku skompilowanym)
+├── regis_worker/           ← przestarzałe, do usunięcia
+├── regis_satellite/        ← przestarzałe, do usunięcia
+├── regis_terminal/         ← przestarzałe, do usunięcia
+└── regis_cli/              ← zaktualizowane
 ```
 
 ---
@@ -37,6 +41,5 @@ src/
 ## Kroki Startowe dla Następnego Agenta
 
 1. **Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).**
-2. **Przeczytaj `docs/arch_restrukturyzacja_2025.md`** — jesteśmy przed głównym punktem, Sesją C.
-3. **Zacznij od Sesji C** (Stworzenie `regis_node/` - tray app Windows). Zaprojektuj wizarda, przenieś logikę z worker i satellite. 
-4. Pamiętaj, aby po wszystkim przeprowadzić testy `pytest`.
+2. **Dokończ Sesję C** - zadanie priorytetowe to analiza błędu aplikacji podczas startu `pystray` ze skompilowanego środowiska Portable (PyInstaller). Po włączeniu `Uruchom.bat` aplikacja przechodzi wizarda, po czym kończy nagle pracę i zamyka konsolę zamiast przenieść się do System Tray. Należy rozpocząć od diagnozy kodu `main.py` oraz `tray.py`.
+3. Jeśli Sesja C zostanie całkowicie naprawiona, przejdź do Sesji D (usunięcie starych pakietów, update dokumentacji projektu).

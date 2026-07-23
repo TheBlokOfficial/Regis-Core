@@ -23,6 +23,6 @@ custom_style = Style([
     ('highlighted', 'fg:#ffffff bold'), # Podświetlona opcja
     ('selected', 'fg:#808080'),         # Zaznaczona opcja (w multi-select)
     ('separator', 'fg:#808080'),        # Separator
-    ('instruction', 'fg:#808080 dim'),  # Instrukcja (np. "użyj strzałek")
+    ('instruction', 'fg:#808080'),      # Instrukcja (np. "użyj strzałek")
     ('text', ''),                       # Zwykły tekst
 ])
