@@ -4,60 +4,43 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Sesja Architektoniczna: Plan Restrukturyzacji)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Implementacja: Sesja A)
 
 ### Co zostało zrobione
 
-Przeprowadzono sesję architektoniczną z użytkownikiem (bez pisania kodu). Wynikiem jest kompletny plan restrukturyzacji projektu do dwóch usług produkcyjnych.
+Zrealizowano Sesję A (Sprzątanie i weryfikacja bazy) zgodnie z dokumentem `docs/arch_restrukturyzacja_2025.md`.
 
-1. **Stworzono dokument `docs/arch_restrukturyzacja_2025.md`** — szczegółowy plan implementacji dla następnych agentów. Zawiera wizję docelową, flow użytkownika, strukturę nowych pakietów i plan 4 sesji.
-2. **Przepisano `docs/ONBOARDING.md`** — stary dokument opisywał strukturę `apps/` (nieistniejącą). Nowy opisuje aktualną strukturę `src/` i nową architekturę dwóch usług.
-3. **Zaktualizowano `docs/MANIFEST.md §3`** — zmieniono "Trzy Niezależne Procesy" na "Dwie Usługi Produkcyjne" zgodnie z decyzją podjętą w tej sesji.
-
-### Kluczowe Decyzje Architektoniczne Podjęte w Tej Sesji
-
-| Decyzja | Szczegół |
-|---|---|
-| Windows = tray app | `regis_node` to ikona System Tray (pystray), nie CLI |
-| Worker + Satellite jednocześnie | Nie wykluczają się — oba mogą działać na tym samym PC |
-| Ukryte procesy | Worker i Satellite jako `subprocess.Popen` z `CREATE_NO_WINDOW` |
-| Autostart przez Registry | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` |
-| Konfiguracja: wizard + edycja z tray | Questionary przy pierwszym uruchomieniu, opcja edycji z menu tray |
-| Kontroler tylko Linux | `.whl`, bez wersji Windows — bez zmian |
-| Terminal: niski priorytet | Stara wersja przestarzała. Nowa (monitor systemu) — osobna sesja w przyszłości |
-| Pystray jako biblioteka tray | Nowa zależność w extras `[node]` |
+1. Dodano brakujący plik `__init__.py` do katalogu `src/regis_satellite/`.
+2. Zweryfikowano brak pakietu `regis_terminal/` w `src/`. Usunięto nieaktualny entry point `regis-terminal` z `pyproject.toml`, aby zapobiec błędom budowania.
+3. Przeprowadzono testy `pytest` - ustalono wynik bazowy: 26 przeszło, 1 błąd w `test_pi_discovery.py` (spodziewany błąd związany z brakiem fixture `ip`).
 
 ---
 
 ## Aktualny Stan Kodu
 
-Kod **nie był modyfikowany** w tej sesji. Zmiany dotyczyły wyłącznie dokumentacji.
+Baza kodu jest przygotowana do głównych prac restrukturyzacyjnych.
 
 ```text
 src/
 ├── core/                   ← biblioteka wspólna [BEZ ZMIAN]
 ├── integrations/           ← klient HA          [BEZ ZMIAN]
-├── regis_controller/       ← 1 plik main.py (361 linii) — do refaktoryzacji
+├── regis_controller/       ← gotowe do refaktoryzacji
 │   └── main.py
-├── regis_worker/           ← do usunięcia po migracji do regis_node
-├── regis_satellite/        ← do usunięcia po migracji do regis_node
-├── regis_terminal/         ← do usunięcia (koncepcja wycofana)
-├── regis_cli/              ← builders.py wymaga aktualizacji (1 paczka zamiast 3)
-└── [regis_node/]           ← JESZCZE NIE ISTNIEJE — do stworzenia
+├── regis_worker/           ← czeka na migrację do regis_node
+├── regis_satellite/        ← ma już __init__.py, czeka na migrację do regis_node
+├── regis_cli/              ← czeka na aktualizację builders.py
+└── [regis_node/]           ← JESZCZE NIE ISTNIEJE
 ```
 
-Testy: 26/27 przechodzi (1 niezwiązany błąd w `test_pi_discovery.py`).
+Testy bazowe przed następnymi krokami: 26 passed, 1 error (`test_pi_discovery.py`).
+Projekt buduje się bez problemów po usunięciu śladów terminala.
 
 ---
 
 ## Kroki Startowe dla Następnego Agenta
 
 1. **Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).**
-2. **Przeczytaj `docs/arch_restrukturyzacja_2025.md`** — to jest Twoja główna instrukcja. Zawiera plan 4 sesji implementacyjnych.
-3. Zacznij od **Sesji A** (sprzątanie i weryfikacja bazy) — jest to warunek wstępny przed jakimkolwiek kodem.
-4. Sesja A → B → C → D — nie pomijaj kolejności, każda sesja ma zdefiniowany warunek weryfikacji.
-
-### Ważne: co sprawdzić na początku Sesji A
-- Czy `regis_satellite/` ma `__init__.py` (podejrzenie że go brakuje)
-- Czy `regis_terminal/` istnieje w `src/` (nie był widoczny na liście pakietów)
-- Uruchom `pytest` i zapisz wynik bazowy
+2. **Przeczytaj `docs/arch_restrukturyzacja_2025.md`** — jesteśmy w trakcie wdrażania tego planu.
+3. **Zacznij od Sesji B** (Refaktoryzacja `regis_controller/main.py` na podmoduły: `registry`, `router`, `tools`, `app`).
+4. Upewnij się, że rozbicie `main.py` nie zmieni API usługi Kontrolera.
+5. Po zakończeniu refaktoryzacji puść testy `pytest`, upewniając się, że wynik się nie zmienił (nadal 26 passed, 1 error).

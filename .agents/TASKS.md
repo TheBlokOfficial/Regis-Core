@@ -6,7 +6,7 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 ## Aktywne Zadania
 
 ### [ARCH] Restrukturyzacja do Dwóch Usług (plan: `docs/arch_restrukturyzacja_2025.md`)
-- [ ] [Sesja A] Sprzątanie i weryfikacja bazy: `__init__.py` w satellite, weryfikacja terminal, pytest bazowy
+- [x] [Sesja A] Sprzątanie i weryfikacja bazy: `__init__.py` w satellite, weryfikacja terminal, pytest bazowy
 - [ ] [Sesja B] Refaktoryzacja `regis_controller/main.py` na podmoduły (registry, router, tools, app) — zero zmian w API
 - [ ] [Sesja C] Stworzenie `regis_node/` (tray app Windows): wizard, tray, worker, satellite, node
 - [ ] [Sesja D] Dokumentacja, usunięcie starych pakietów (regis_worker, regis_satellite, regis_terminal), finalne testy

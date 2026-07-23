@@ -46,7 +46,6 @@ all = [
 [project.scripts]
 regis-controller = "regis_controller.main:start"
 regis-worker     = "regis_worker.node:start"
-regis-terminal   = "regis_terminal.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
