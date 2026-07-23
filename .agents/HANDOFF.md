@@ -4,45 +4,60 @@ Ten plik służy do przekazywania kontekstu między agentami. Zawsze czytaj go n
 
 ---
 
-## Ostatnia Aktywność (Sesja 2026-07-23 — Przejście na Architekturę 'src' layout)
+## Ostatnia Aktywność (Sesja 2026-07-23 — Sesja Architektoniczna: Plan Restrukturyzacji)
 
 ### Co zostało zrobione
 
-Podczas tej sesji sfinalizowano wdrożenie "src layout", co stanowiło absolutny priorytet:
-1. **Wdrożenie src layout:** Utworzono katalog `src/` w głównym katalogu projektu i przeniesiono do niego wszystkie pakiety źródłowe (`core/`, `integrations/`, `regis_cli/`, `regis_controller/`, `regis_satellite/`, `regis_terminal/`, `regis_worker/`).
-2. **Czyszczenie atrybutów:** Zgodnie z nową architekturą, pliki konfiguracyjne w katalogu głównym projektu przestały być ukrywane (zdjęto atrybut Hidden).
-3. **Aktualizacja Konfiguracji:** Dostosowano pliki konfiguracyjne do nowej ścieżki pakietów: `pyproject.toml` (wskazuje teraz na `where = ["src"]`), `pytest.ini` (`pythonpath = src`), oraz startowy skrypt `regis.bat` (aktualizacja `PYTHONPATH`).
-4. **Aktualizacja PyInstallera:** W module `regis_cli/builders.py` podmieniono parametry kompilacji (`--paths src` oraz ścieżki do plików `main.py` czy `node.py`).
+Przeprowadzono sesję architektoniczną z użytkownikiem (bez pisania kodu). Wynikiem jest kompletny plan restrukturyzacji projektu do dwóch usług produkcyjnych.
 
-### Stan testów
+1. **Stworzono dokument `docs/arch_restrukturyzacja_2025.md`** — szczegółowy plan implementacji dla następnych agentów. Zawiera wizję docelową, flow użytkownika, strukturę nowych pakietów i plan 4 sesji.
+2. **Przepisano `docs/ONBOARDING.md`** — stary dokument opisywał strukturę `apps/` (nieistniejącą). Nowy opisuje aktualną strukturę `src/` i nową architekturę dwóch usług.
+3. **Zaktualizowano `docs/MANIFEST.md §3`** — zmieniono "Trzy Niezależne Procesy" na "Dwie Usługi Produkcyjne" zgodnie z decyzją podjętą w tej sesji.
 
-Paczki `.whl` budują się prawidłowo z nową strukturą. Testy `pytest` wykonują się bez problemów z odnalezieniem ścieżek importu (26 testów przeszło z sukcesem, wystąpił 1 błąd w `test_pi_discovery.py` ze względu na błędnie zadeklarowaną przestarzałą metodę testu, który jest niezwiązany ze zmianą struktury i nie był dotykany).
+### Kluczowe Decyzje Architektoniczne Podjęte w Tej Sesji
+
+| Decyzja | Szczegół |
+|---|---|
+| Windows = tray app | `regis_node` to ikona System Tray (pystray), nie CLI |
+| Worker + Satellite jednocześnie | Nie wykluczają się — oba mogą działać na tym samym PC |
+| Ukryte procesy | Worker i Satellite jako `subprocess.Popen` z `CREATE_NO_WINDOW` |
+| Autostart przez Registry | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` |
+| Konfiguracja: wizard + edycja z tray | Questionary przy pierwszym uruchomieniu, opcja edycji z menu tray |
+| Kontroler tylko Linux | `.whl`, bez wersji Windows — bez zmian |
+| Terminal: niski priorytet | Stara wersja przestarzała. Nowa (monitor systemu) — osobna sesja w przyszłości |
+| Pystray jako biblioteka tray | Nowa zależność w extras `[node]` |
 
 ---
 
 ## Aktualny Stan Kodu
 
+Kod **nie był modyfikowany** w tej sesji. Zmiany dotyczyły wyłącznie dokumentacji.
+
 ```text
-(Główny folder projektu — w pełni widoczny, zachowujący czysty podział na kod i konfigurację)
-├── src/                   ← [NOWY] Cały kod źródłowy projektu
-│   ├── core/
-│   ├── integrations/
-│   ├── regis_cli/
-│   ├── regis_controller/
-│   ├── regis_satellite/
-│   ├── regis_terminal/
-│   └── regis_worker/
-├── tests/
-├── pyproject.toml         ← Zaktualizowany
-├── pytest.ini             ← Zaktualizowany
-├── regis.bat              ← Zaktualizowany
-└── ...
+src/
+├── core/                   ← biblioteka wspólna [BEZ ZMIAN]
+├── integrations/           ← klient HA          [BEZ ZMIAN]
+├── regis_controller/       ← 1 plik main.py (361 linii) — do refaktoryzacji
+│   └── main.py
+├── regis_worker/           ← do usunięcia po migracji do regis_node
+├── regis_satellite/        ← do usunięcia po migracji do regis_node
+├── regis_terminal/         ← do usunięcia (koncepcja wycofana)
+├── regis_cli/              ← builders.py wymaga aktualizacji (1 paczka zamiast 3)
+└── [regis_node/]           ← JESZCZE NIE ISTNIEJE — do stworzenia
 ```
+
+Testy: 26/27 przechodzi (1 niezwiązany błąd w `test_pi_discovery.py`).
 
 ---
 
 ## Kroki Startowe dla Następnego Agenta
 
 1. **Przeczytaj `docs/MANIFEST.md` i `docs/AGENT_GUIDE.md` (obowiązkowe).**
-2. Architektura "src layout" została pomyślnie zaimplementowana i działa. Przejdź do głównego zadania.
-3. Sprawdź `TASKS.md` — najważniejszym niezrealizowanym jeszcze zadaniem jest **zaprojektowanie i wdrożenie nowej Pamięci Długoterminowej (Long-Term Memory)** (np. wektorowej) dla systemu Regis. Przed rozpoczęciem, zapoznaj się z problematyką.
+2. **Przeczytaj `docs/arch_restrukturyzacja_2025.md`** — to jest Twoja główna instrukcja. Zawiera plan 4 sesji implementacyjnych.
+3. Zacznij od **Sesji A** (sprzątanie i weryfikacja bazy) — jest to warunek wstępny przed jakimkolwiek kodem.
+4. Sesja A → B → C → D — nie pomijaj kolejności, każda sesja ma zdefiniowany warunek weryfikacji.
+
+### Ważne: co sprawdzić na początku Sesji A
+- Czy `regis_satellite/` ma `__init__.py` (podejrzenie że go brakuje)
+- Czy `regis_terminal/` istnieje w `src/` (nie był widoczny na liście pakietów)
+- Uruchom `pytest` i zapisz wynik bazowy

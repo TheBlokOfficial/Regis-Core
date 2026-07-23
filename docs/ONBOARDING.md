@@ -11,315 +11,242 @@ Zanim zaczniesz czytać ten dokument, upewnij się, że zapoznałeś się z `doc
 ```
 regis-core/
 │
-├── apps/           ← Punkty wejścia — uruchamialne aplikacje
-│   ├── controller/ ← Kontroler: lekki router API + integracja HA (daemon RPi5)
-│   ├── worker/     ← Węzeł Roboczy: LLMEngine + STTEngine, bez logiki HTTP
-│   ├── satellite/  ← Satelita audio (VAD + I/O)
-│   └── terminal/   ← Terminal CLI (satelita tekstowa, deweloperska)
-├── core/           ← Serce systemu — współdzielona logika
-├── integrations/   ← Klienci zewnętrznych API (świat zewnętrzny)
-├── data/           ← Konfiguracja, logi, prompty (wykluczone z Git)
-├── docs/           ← Dokumentacja projektu
-├── scripts/        ← Pliki pomocnicze do deploymentu
-└── tests/          ← Testy jednostkowe pytest
+├── src/                ← Cały kod źródłowy projektu (src layout)
+│   ├── core/           ← Biblioteka wspólna — importowana przez wszystkich
+│   ├── integrations/   ← Klienci zewnętrznych API (HA, MQTT, inne)
+│   ├── regis_controller/ ← Usługa RPi5: routing, rejestr encji, proxy
+│   ├── regis_node/     ← Usługa Windows: tray app (worker + satellite)
+│   └── regis_cli/      ← Narzędzie deweloperskie: build, deploy, testy
+│
+├── data/               ← Konfiguracja, logi, prompty (wykluczone z Git)
+├── docs/               ← Dokumentacja projektu
+├── tests/              ← Testy jednostkowe pytest
+├── pyproject.toml      ← Definicja pakietu i zależności
+├── pytest.ini          ← Konfiguracja testów
+└── regis.bat           ← Uruchomienie CLI menedżera projektu (dev)
 ```
 
 **Prosta zasada podziału:**
 - `core/` = **mózg** — nie uruchamia się sam, ale wszystko go używa.
-- `apps/` = **kończyny** — uruchamiane bezpośrednio, używają `core/`.
-- `integrations/` = **zmysły** — klienci zewnętrznych usług i platform (HA, MQTT, inne). Każda integracja to osobny plik. System nie zakłada wyłączności żadnej z nich.
+- `regis_controller/` + `regis_node/` = **usługi produkcyjne** — każda na innym urządzeniu.
+- `integrations/` = **zmysły** — klienci zewnętrznych platform. Każda integracja to osobny plik.
+- `regis_cli/` = **narzędzie dewelopera** — build, deploy, testy. Nie jest dystrybuowany.
 - `data/` = **pamięć** — konfiguracja i stan, który przeżywa restarty.
 
 ---
 
-## `apps/` — Aplikacje (Punkty Wejścia)
+## `src/regis_controller/` — Kontroler (RPi5)
 
-Każdy podkatalog to osobna, niezależna aplikacja. Uruchamiane przez `python -m apps.<nazwa>`.
+**Rola:** Mózg systemu. Lekki daemon uruchamiany wyłącznie na Raspberry Pi 5 (jedna instancja globalna). Zarządza rejestrem węzłów i satelit, routingiem sesji oraz delegowaniem narzędzi do Home Assistant.
 
-### `apps/controller/` — Kontroler (FastAPI)
-**Rola:** Lekki daemon uruchamiany na Raspberry Pi 5. Mózg systemu: wystawia REST API dla Satelit, zarządza integracją z Home Assistant i deleguje inferencję do Węzła Roboczego.
+**Dystrybucja:** Pakiet `.whl` instalowany przez `pip` na Raspberry Pi 5 (Linux).
 
-**Plik:** `main.py`
-- Przy starcie ładuje konfigurację (`config.py`), inicjalizuje `HomeAssistantClient`, `ToolsRegistry` i `WorkerNode`.
-- Wystawia trzy endpointy:
-  - `POST /v1/chat/stream` — przyjmuje wiadomość tekstową, zwraca odpowiedź modelu jako **Server-Sent Events (SSE)**. Każdy token/myśl/wywołanie narzędzia to osobne zdarzenie strumieniowe.
-  - `POST /v1/chat/audio_stream` — przyjmuje plik `.wav`, przekazuje do Węzła Roboczego (STT → LLM). Reszta jak wyżej.
-  - `POST /v1/clear_history` — resetuje historię konwersacji węzła roboczego.
+**Pliki:**
+- `main.py` — entry point, uruchamia serwer uvicorn
+- `app.py` — instancja FastAPI + lifespan (inicjalizacja klientów HA, rejestru)
+- `registry.py` — logika rejestrów workerów i satelit, heartbeat, wybór najlepszego węzła
+- `router.py` — proxy SSE: przekierowuje żądania czatu (tekst i audio) do aktywnych węzłów z failoverem
+- `tools.py` — endpoint `/v1/tools/execute`: jedyne miejsce w systemie które komunikuje się z HA
 
-> **Uwaga architektoniczna:** Kontroler na tym etapie importuje `WorkerNode` bezpośrednio. Po wdrożeniu Rejestru Encji (`[ARCH]` w TASKS.md) WorkerNode stanie się osobnym procesem HTTP, a Kontroler będzie go tylko wykrywać i routować do niego żądania.
-
----
-
-### `apps/worker/` — Węzeł Roboczy
-**Rola:** Hostuje model LLM i silnik STT. Odpowiada wyłącznie za inferencję. Nie zawiera żadnej logiki HTTP ani integracji z Home Assistant.
-
-**Plik:** `node.py`
-- Klasa `WorkerNode` — inicjalizuje `LLMEngine` i `STTEngine`.
-- Interfejs publiczny: `handle_chat()`, `handle_audio()`, `clear_history()`.
-- `handle_audio()` wewnętrznie: STT (Whisper) → `handle_chat()` → LLM.
+> **Zasada Architektoniczna:** Kontroler jest jedynym źródłem prawdy dla Home Assistant.
+> Węzły robocze nigdy nie komunikują się z HA bezpośrednio — zawsze przez `/v1/tools/execute`.
 
 ---
 
-### `apps/terminal/` — Terminal CLI (Satelita tekstowa)
-**Rola:** Interfejs deweloperski. Działa jako "Satelita tekstowa" — można go podłączyć lokalnie do `LLMEngine` (tryb `prod`) lub zdalnie do Kontrolera przez SSE (tryb `remote`).
+## `src/regis_node/` — Węzeł (Windows PC)
 
-**Plik:** `main.py`
-- Wyświetla główne menu (tryb `prod` lub `remote`).
-- W trybie `prod`: inicjalizuje własną instancję `LLMEngine` i uruchamia pętlę CLI lokalnie.
-- W trybie `remote`: tworzy `RemoteClient` i łączy się z `apps/controller/` przez HTTP/SSE.
+**Rola:** Zunifikowana usługa Windows zastępująca trzy poprzednie binarki (`regis_worker`, `regis_satellite`, `regis_terminal`). Działa jako **aplikacja System Tray** — ikona w prawym dolnym rogu paska zadań.
 
-**Plik:** `cli.py`
-- Cały wizualny interfejs użytkownika w terminalu (biblioteki `rich`, `questionary`).
-- Zawiera pętlę REPL (Read-Eval-Print-Loop) — nieskończona pętla wczytywania inputu i wyświetlania odpowiedzi strumieniowo (token po tokenie).
-- Obsługuje komendy specjalne: `/clear`, `/provider`, `/model` itp.
+**Dystrybucja:** Portable App — folder `Regis-Node/` z binarką PyInstaller, plikiem `Uruchom.bat` i folderem `data/`.
+
+**Pliki:**
+- `main.py` — entry point: jeśli brak `data/settings.json` → uruchamia wizard; jeśli istnieje → uruchamia tray
+- `wizard.py` — kreator konfiguracji (questionary) dla pierwszego uruchomienia; dostępny też z menu tray
+- `tray.py` — logika ikony System Tray (biblioteka `pystray`); zarządza procesami Worker i Satellite przez `subprocess.Popen`
+- `worker.py` — serwer HTTP węzła LLM (FastAPI); uruchamiany jako ukryty proces w tle
+- `node.py` — klasa `WorkerNode`: inicjalizuje `LLMEngine` i `STTEngine`, obsługuje `handle_chat()` i `handle_audio()`
+- `satellite.py` — logika przechwytywania audio z mikrofonu i wysyłania do Kontrolera
+
+**Flow pierwszego uruchomienia:**
+1. `Uruchom.bat` → `regis-node.exe`
+2. Brak `settings.json` → otwiera się konsola z wizardem questionary
+3. Użytkownik konfiguruje: nazwa instancji, pokój, URL Kontrolera, tier modelu, które usługi uruchamiać
+4. Zapisuje `data/settings.json` → konsola znika → ikona pojawia się w tray
+
+**Menu System Tray (prawy klik):**
+- Status i przyciski start/stop dla Worker i Satellite (mogą działać jednocześnie)
+- Włącz/wyłącz autostart systemu (Registry Run)
+- Konfiguracja (otwiera ponownie wizard)
+- Zamknij panel (procesy w tle działają dalej)
+- Zamknij wszystko
 
 ---
 
-### `apps/satellite/` — Satelita Audio *(w budowie)*
-**Rola:** Moduł przechwytywania i odtwarzania dźwięku. Nagrywa audio z mikrofonu i wysyła je do Kontrolera (`/v1/chat/audio_stream`).
+## `src/regis_cli/` — Menedżer Projektu (Dev)
+
+**Rola:** Narzędzie deweloperskie do zarządzania projektem. **Nie jest dystrybuowany** do użytkowników końcowych.
+
+**Uruchomienie:** `regis.bat` w katalogu głównym.
+
+**Pliki:**
+- `main.py` — menu główne (questionary): Build, Deploy, Testy
+- `builders.py` — kompilacja binarek PyInstaller; produkuje jedną paczkę `Regis-Node/` (portable app)
+- `deployers.py` — deployment na Raspberry Pi przez SSH (upload `.whl`, restart usługi systemd)
+- `ux.py` — style rich/questionary wspólne dla całego CLI
 
 ---
 
-## `core/` — Serce Systemu
+## `src/core/` — Serce Systemu
 
-Pliki w tym katalogu **nigdy nie są uruchamiane bezpośrednio**. Są importowane przez `apps/` i przez siebie nawzajem.
+Pliki w tym katalogu **nigdy nie są uruchamiane bezpośrednio**. Są importowane przez usługi i przez siebie nawzajem.
 
 ### `llm_engine.py` — Silnik LLM
-**Co robi:** Zarządza całą komunikacją z Ollamą. To najbardziej centralny plik w projekcie.
+Zarządza całą komunikacją z Ollamą. Najbardziej centralny plik w projekcie.
 
 Kluczowe odpowiedzialności:
-- Buduje kompletny system prompt (tożsamość modelu z `data/prompts/` + opis narzędzi).
-- Implementuje **pętlę ReAct** — wysyła zapytanie do modelu, parsuje odpowiedź, jeśli model wywołał narzędzie — wykonuje je przez `ToolsRegistry` i wraca do modelu z wynikiem. Powtarza dopóki model nie skończy.
-- Dla tieru `butler` (1.5B): używa **Structured Outputs** (JSON Schema wymuszany przez Ollamę) zamiast pętli ReAct — szybszy parser NLU.
-- Zarządza historią konwersacji (lista tur `user` + `assistant`, z limitem).
-- Używa wzorca **Droga A**: opisy narzędzi są renderowane jako tekst XML-like (`<tools>`) do promptu — nie jako pole `tools` w API. Eliminuje to kolizję z natywnym angielskim blokiem instrukcji Ollamy.
+- Buduje kompletny system prompt (tożsamość modelu z `data/prompts/` + opis narzędzi renderowany jako XML)
+- Implementuje **pętlę ReAct** — wysyła zapytanie, parsuje odpowiedź, wykonuje narzędzia, powtarza
+- Dla tieru `butler` (1.5B): używa **Structured Outputs** (JSON Schema przez Ollamę) zamiast ReAct
+- Zarządza historią konwersacji (lista pełnych tur `user+assistant`, z limitem)
+- **Droga A:** opisy narzędzi renderowane jako tekst XML (`<tools>`) do promptu, nie jako pole `tools` w API
 
 ### `stream_parser.py` — Parser Strumieniowy
-**Co robi:** Przetwarza surowy strumień tokenów z Ollamy i segreguje go na trzy kanały zdarzeń.
+Przetwarza surowy strumień tokenów z Ollamy i segreguje na trzy kanały:
+- `<thought>...</thought>` → callback `on_thought_token` (wewnętrzny monolog modelu)
+- `<tool_call>...</tool_call>` → przechwycone jako wywołanie narzędzia
+- Reszta → callback `on_content_token` (to co widzi użytkownik)
 
-- Rozpoznaje tagi `<thought>...</thought>` → token leci do callbacka `on_thought_token`.
-- Rozpoznaje tagi `<tool_call>...</tool_call>` → przechwytuje JSON i przekazuje go silnikowi jako gotowe wywołanie narzędzia.
-- Reszta → callback `on_content_token` (to co widzi użytkownik).
-- Posiada bufor Lookahead — zabezpiecza przed sytuacją, gdy tag zostaje podzielony na dwa osobne chunki TCP.
+Bufor Lookahead chroni przed tagami rozbitymi na dwa chunki TCP.
 
-### `tools_registry.py` — Rejestr Narzędzi
-**Co robi:** Wie jakie narzędzia istnieją i co robią. Weryfikuje uprawnienia i wykonuje wywołania.
+### `tools_registry.py` — Rejestr Narzędzi (lokalny)
+Używany przez Kontroler. Weryfikuje uprawnienia tieru i wykonuje wywołania narzędzi przez klientów w `integrations/`. Zwraca wynik jako string JSON.
 
-- Przy wywołaniu narzędzia przez LLM sprawdza, czy tier aktualnego modelu ma do niego dostęp (system uprawnień `butler < regis < prime`).
-- Kieruje wywołania do odpowiednich klientów (np. `ha_client.turn_on()` dla narzędzia `turn_on`).
-- Zwraca wynik narzędzia jako string JSON z powrotem do `llm_engine.py`.
+### `remote_tools_registry.py` — Rejestr Narzędzi (zdalny)
+Używany przez Węzeł Roboczy. Zamiast wywoływać narzędzia lokalnie — deleguje je do Kontrolera przez HTTP POST `/v1/tools/execute`. Węzeł nigdy nie zna HA.
 
 ### `schemas.py` — Definicje Narzędzi
-**Co robi:** Przechowuje `BASE_TOOLS_SCHEMA` — listę wszystkich dostępnych narzędzi z ich opisami, parametrami i wymaganym tierem.
-
-To jest "menu narzędzi" systemu. `llm_engine.py` używa go do renderowania opisu narzędzi do promptu, a `tools_registry.py` do weryfikacji czy narzędzie istnieje.
+`BASE_TOOLS_SCHEMA` — lista wszystkich dostępnych narzędzi z opisami, parametrami i wymaganym tierem. To "menu narzędzi" systemu.
 
 ### `config.py` — Konfiguracja
-**Co robi:** Centralny punkt ładowania plików konfiguracyjnych z katalogu `data/`.
+Centralny punkt ładowania konfiguracji z `data/`. Obsługuje profile (`ACTIVE_PROFILE` z `.env`) i tryb frozen (PyInstaller). Ładuje: `settings.<PROFILE>.json`, `aliases.json`, `virtual_groups.json`, `rooms.json`.
 
-- `load_settings()` → `data/settings.json` (aktywny tier, URL HA, token HA)
-- `load_aliases()` → `data/aliases.json` (ludzkie nazwy urządzeń)
-- `load_virtual_groups()` → `data/virtual_groups.json` (logiczne grupy urządzeń)
+### `discovery.py` — Auto-Discovery
+Implementacja Zero-Conf przez UDP Broadcast. Węzły i Satelity wykrywają Kontroler automatycznie w sieci lokalnej bez hardkodowania IP.
 
 ### `remote_client.py` — Klient Zdalny
-**Co robi:** Implementuje ten sam interfejs co `LLMEngine`, ale zamiast lokalnie odpytywać Ollamę — wysyła żądania do `apps/server/` przez HTTP/SSE.
-
-Terminal CLI nie wie, czy rozmawia z lokalnym silnikiem czy z serwerem — oba obiekty wyglądają tak samo z zewnątrz (ten sam interfejs `generate_response()`).
+Implementuje interfejs zgodny z `LLMEngine`, ale wysyła żądania do Kontrolera przez HTTP/SSE. Używany przez Satelitę.
 
 ### `stt_engine.py` — Silnik STT
-**Co robi:** Cienka warstwa opakowująca model `faster-whisper`. Przyjmuje plik `.wav` w pamięci (jako `BytesIO`) i zwraca transkrypcję jako string.
-
-### `exceptions.py` — Wyjątki
-**Co robi:** Definicje niestandardowych wyjątków projektu (np. `LLMConnectionError`).
+Cienka warstwa na `faster-whisper`. Przyjmuje `BytesIO` z plikiem WAV, zwraca transkrypcję jako string.
 
 ### `gemini_engine.py` — Silnik Gemini *(eksperymentalny)*
-**Co robi:** Alternatywny silnik LLM używający chmurowego API Google Gemini zamiast lokalnej Ollamy. Implementuje ten sam interfejs co `LLMEngine`. Aktywowany przez komendę `/provider gemini` w terminalu.
+Alternatywny silnik LLM używający chmurowego API Google Gemini. Nie produkcyjny.
 
 ---
 
-## `integrations/` — Klienci Zewnętrznych Usług
+## `src/integrations/` — Klienci Zewnętrznych Usług
 
-Katalog stanowi granicę między logiką systemu a światem zewnętrznym. Każda integracja to osobny plik — dodanie nowej platformy nie wymaga zmian w żadnej innej warstwie (patrz MANIFEST.md §3.5).
+Katalog stanowi granicę między logiką systemu a światem zewnętrznym. Każda integracja to osobny plik.
 
 ### `ha_client.py` — Klient Home Assistant
-**Co robi:** Zarządza całą komunikacją z Home Assistant REST API. HA jest pierwszą i największą integracją — obsługuje żarówki, przełączniki, klimatyzację, odtwarzacze mediów.
-
-Kluczowe cechy:
-- Używa `requests.Session()` — jedno długotrwałe połączenie zamiast nowego połączenia TLS przy każdym wywołaniu. Dramatycznie redukuje latencję.
-- Obsługuje **Wirtualne Grupy** (`virtual_groups.json`) — pozwala sterować 7 żarówkami jednym wywołaniem API zamiast 7 osobnymi.
-- Obsługuje aliasy — mapuje ludzkie nazwy ("lampa w salonie") na `entity_id` HA.
-- Wysyła komendy do HA jako pojedyncze żądania POST z tablicą `entity_id` — zamiast pętli po urządzeniach.
+Zarządza komunikacją z Home Assistant REST API. Używa `requests.Session()` — jedno długotrwałe połączenie. Obsługuje aliasy i wirtualne grupy urządzeń.
 
 ### `ha_mock.py` — Mock Home Assistant
-**Co robi:** Atrapa klienta HA do testowania i developmentu bez fizycznego Home Assistanta. Zwraca statyczne dane.
+Atrapa klienta HA do testowania bez fizycznego Home Assistanta.
 
 ---
 
 ## `data/` — Konfiguracja i Stan *(wykluczony z Git)*
 
-### `settings.json`
-Główna konfiguracja aplikacji: aktywny tier, URL i token HA, URL serwera, historia.
+### `settings.<PROFILE>.json`
+Konfiguracja per instancja. Profil ładowany przez zmienną `ACTIVE_PROFILE` z `.env`. Dla Kontrolera na RPi: `settings.controller.json`. Dla paczki Portable: `settings.json` (tworzony przez wizard).
 
 ### `prompts/`
 Pliki Markdown definiujące osobowość i instrukcje dla każdego tieru modelu:
-- `tier_butler.md` — instrukcje dla modelu 1.5B (NLU, minimalistyczny prompt Few-Shot JSON)
-- `tier_regis.md` — instrukcje dla modelu 14B (pełny agent ReAct z Chain of Thought)
-- `tier_prime.md` — instrukcje dla modelu 32B (rozszerzone możliwości)
-
-Te pliki są ładowane dynamicznie przez `llm_engine.py` przy każdym starcie silnika.
+- `tier_butler.md` — model 1.5B, NLU, minimalistyczny prompt Few-Shot JSON
+- `tier_regis.md` — model 14B, pełny agent ReAct z Chain of Thought
+- `tier_prime.md` — model 32B+, rozszerzone możliwości
 
 ### `virtual_groups.json`
-Definicja logicznych grup urządzeń. Pozwala modelowi sterować wieloma urządzeniami jedną komendą bez potrzeby znajomości ich indywidualnych `entity_id`.
+Logiczne grupy urządzeń (np. "wszystkie żarówki w salonie"). Pozwala sterować wieloma urządzeniami jedną komendą.
 
 ### `aliases.json`
-Mapowanie przyjaznych nazw urządzeń na ich `entity_id` w Home Assistant.
+Mapowanie przyjaznych nazw na `entity_id` HA.
 
 ### `rooms.json`
-Mapowanie pokojów na listy `entity_id` — wewnętrzna konfiguracja Regis niezależna od HA (MANIFEST.md §3.5). Używana przez `ToolsRegistry` do Spatial Context Filtering: gdy Satelita z danego pokoju wysyła żądanie, model widzi tylko urządzenia z tego pokoju zamiast pełnej listy. Wczytywana przez `config.load_rooms()`.
-
-### `regis.log`
-Plik logów aplikacji — zapisywany przy każdym uruchomieniu.
+Mapowanie pokojów na listy `entity_id` — wewnętrzna konfiguracja Regis niezależna od HA. Używana przez Spatial Context Filtering.
 
 ---
 
 ## `docs/` — Dokumentacja Projektu
 
-- `MANIFEST.md` — **Czytaj jako pierwszy.** Wizja, filozofia i cele projektu.
-- `ARCHITECTURE.md` — Nadrzędne zasady projektowe i specyfikacja sprzętowa (starszy dokument).
-- `ONBOARDING.md` — Ten plik. Mapa kodu.
-
----
-
-## `scripts/`
-
-### `regis.service`
-Plik konfiguracyjny `systemd` do uruchamiania `apps/server/` jako daemona systemowego na Raspberry Pi (autostart przy starcie systemu).
-
----
-
-## Skrypty w Katalogu Głównym
-
-| Plik | Co robi |
+| Plik | Zawartość |
 |---|---|
-| `run_server.bat` | Uruchamia `apps/controller/` na Windowsie (dev) |
-| `run_terminal.bat` | Uruchamia `apps/terminal/` na Windowsie |
-| `deploy_to_pi.bat` | Wysyła aktualne pliki na Raspberry Pi przez SSH i restartuje daemona |
-| `cleanup.sh` | Usuwa pliki `__pycache__` i `.pyc` |
+| `MANIFEST.md` | **Czytaj jako pierwszy.** Wizja, filozofia, rozstrzygnięte decyzje projektowe. |
+| `AGENT_GUIDE.md` | Instrukcja dla agentów AI pracujących w projekcie. |
+| `ONBOARDING.md` | Ten plik. Mapa kodu i struktury. |
+| `arch_restrukturyzacja_2025.md` | Plan restrukturyzacji do dwóch usług (sesja 2026-07-23). |
+| `auto_discovery_rfc.md` | Specyfikacja protokołu Zero-Conf UDP Broadcast. |
+| `architectural_debt_report.md` | Historyczny raport długu architektonicznego (już rozwiązany). |
 
 ---
 
 ## Jak Przepływa Jedno Polecenie (od A do Z)
 
 ```
-Użytkownik wpisuje "włącz lampę"
+Użytkownik mówi "włącz lampę" (przez mikrofon)
         ↓
-[apps/terminal/cli.py]
-Odczytuje input, wywołuje engine.generate_response("włącz lampę", ...)
+[regis_node/satellite.py]
+Nagrywa audio WAV → wysyła POST /v1/chat/audio_stream do Kontrolera
+        ↓
+[regis_controller/router.py]
+Wybiera najlepszy aktywny węzeł z rejestru → proxy SSE do Worker
+        ↓
+[regis_node/worker.py → node.py]
+Odbiera audio → STT (Whisper) → transkrypcja "włącz lampę"
         ↓
 [core/llm_engine.py] — pętla ReAct, iteracja 1
-Buduje system prompt (tier_regis.md + opisy narzędzi z schemas.py)
-Wysyła do Ollamy → Ollama zaczyna streamować tokeny
+Buduje prompt (tier_regis.md + opisy narzędzi) → Ollama streamuje tokeny
         ↓
 [core/stream_parser.py]
-Token po tokenie parsuje strumień:
-  - <thought>Muszę sprawdzić urządzenia...</thought>  → callback: on_thought_token
-  - <tool_call>{"name": "get_devices"}</tool_call>    → przechwycone jako wywołanie
+  <thought>Muszę sprawdzić urządzenia...</thought>  → on_thought_token
+  <tool_call>{"name": "get_devices"}</tool_call>    → wywołanie narzędzia
         ↓
-[core/tools_registry.py]
-Weryfikuje uprawnienia tieru → wywołuje ha_client.get_devices()
+[core/remote_tools_registry.py]
+POST /v1/tools/execute do Kontrolera (z room z kontekstu Satelity)
         ↓
-[integrations/ha_client.py]
-Pyta Home Assistant REST API o listę urządzeń → zwraca JSON
+[regis_controller/tools.py → core/tools_registry.py]
+Spatial Context Filtering: filtruje urządzenia do pokoju Satelity
+→ ha_client.get_devices() → zwraca listę urządzeń pokoju
         ↓
 [core/llm_engine.py] — pętla ReAct, iteracja 2
-Wynik narzędzia dodany do historii jako wiadomość "tool"
-Ponownie odpytuje Ollamę z pełnym kontekstem (łącznie z wynikiem)
-        ↓
-Ollama generuje: "Rozumiem. Włączam light.salon."
-  - <tool_call>{"name": "turn_on", "entity_id": "light.salon"}</tool_call>
+Wynik narzędzia w historii → Ollama: <tool_call>{"name":"turn_on",...}</tool_call>
         ↓
 [integrations/ha_client.py]
-Wysyła POST do HA → lampa się zapala
+POST do Home Assistant REST API → lampa się zapala
         ↓
 [core/llm_engine.py] — pętla ReAct, iteracja 3
 Model generuje finalną odpowiedź bez tool_call → koniec pętli
         ↓
-[apps/terminal/cli.py]
-Wyświetla odpowiedź użytkownikowi token po tokenie
+SSE strumieniowane przez router do Satelity → Satelita odtwarza audio (TTS)
 ```
 
 ---
 
-## Model Dystrybucji (Docelowy — Jeszcze Niezaimplementowany)
-
-> [!IMPORTANT]
-> Sekcja ta opisuje docelową architekturę dystrybucji, która NIE jest jeszcze zaimplementowana. Aktualnie projekt to zbiór skryptów uruchamianych przez `python -m`. Poniższy model należy wdrożyć DOPIERO po ustabilizowaniu architektury (rozdzieleniu Kontrolera od Węzła Roboczego).
-
-### Problem z aktualnym stanem
-Urządzenie, które chce być tylko Satelitą, musi dziś sklonować cały monorepo — łącznie z kodem `llm_engine.py`, `ha_client.py` i wszystkimi zależnościami Kontrolera i Węzła. To jest nieakceptowalne w finalnej wersji.
-
-### Docelowy Model: Jeden Repo, Osobne Pakiety
-
-Projekt powinien używać jednego `pyproject.toml` z **grupami opcjonalnych zależności (extras)**. Każde urządzenie instaluje tylko to, czego potrzebuje:
-
-```bash
-# Raspberry Pi 5 (Kontroler):
-pip install "regis-core[controller]"
-
-# Desktop PC (Węzeł Roboczy):
-pip install "regis-core[worker]"
-
-# Laptop / dowolne urządzenie (Satelita):
-pip install "regis-core[satellite]"
-
-# Wszystko naraz (deweloper):
-pip install "regis-core[all]"
-```
-
-Mechanizm extras w `pyproject.toml` sprawia, że każda instalacja pobiera tylko odpowiedni podzbiór zależności. Wspólna biblioteka (`core/`) jest zawsze pobierana jako zależność bazowa.
-
-### Docelowy Model: Usługi, nie Konsola
-
-Satelita i Węzeł Roboczy nie powinny być aplikacjami konsolowymi dla końcowego użytkownika. Powinny obsługiwać dwa tryby uruchomienia:
-
-```bash
-# Tryb deweloperski (pierwszoplanowy, z logami w terminalu):
-regis-satellite run
-
-# Instalacja jako usługa systemowa (autostart, tło):
-regis-satellite install-service
-regis-worker install-service
-```
-
-| System | Mechanizm usługi |
-|---|---|
-| Linux / Raspberry Pi | `systemd` — plik `.service` (już istnieje w `scripts/`) |
-| Windows | `pywin32` (WinService) lub zewnętrzne narzędzie NSSM |
-
-Po zainstalowaniu jako usługa — urządzenie startuje i Satelita/Węzeł automatycznie zgłasza się do Kontrolera bez żadnej interakcji użytkownika.
-
----
-
-## Workflow Deweloperski (Stan Aktualny)
-
-Projekt jest rozwijany na komputerze deweloperskim (Windows PC) i deployowany na Raspberry Pi 5.
+## Workflow Deweloperski
 
 ### Środowisko lokalne
-1. Sklonuj repozytorium.
-2. Utwórz wirtualne środowisko: `python -m venv .venv ; .venv\Scripts\Activate.ps1`
-3. Zainstaluj zależności: `pip install -r requirements.txt`
-4. Uruchom terminal: `python -m apps.terminal.main`
+1. Sklonuj repozytorium
+2. `python -m venv .venv ; .venv\Scripts\Activate.ps1`
+3. `pip install -e ".[all]"` — instaluje wszystkie zależności
+4. Uruchom menedżer: `regis.bat`
 
 ### Deployment na Raspberry Pi
-Skrypt `deploy_to_pi.bat` automatyzuje cały proces:
-1. Kopiuje pliki projektu na RPi przez SSH/SCP (z pominięciem `.venv`, `data/`, `__pycache__`).
-2. Restartuje daemona `systemd` (`systemctl restart regis`), który uruchamia `apps/server/main.py`.
+Z menedżera (`regis.bat`) wybierz "Wdróż serwer produkcyjny". Deployer:
+1. Buduje paczkę `.whl`
+2. Kopiuje przez SSH na RPi
+3. Instaluje przez `pip` i restartuje usługę `systemd`
 
-Adres IP Raspberry Pi jest na stałe wpisany w kilku miejscach w kodzie (dług techniczny). Docelowo powinien być konfigurowalny przez `data/settings.json`.
-
-### Gdzie są na stałe wpisane adresy IP (hardcode)
-Przy zmianie topologii sieci należy zaktualizować ręcznie:
-- `core/llm_engine.py` — adres Ollamy na RPi (`OLLAMA_BASE_URL`)
-- `core/remote_client.py` — adres serwera API RPi
-- `apps/terminal/main.py` — adres serwera przy trybie `remote`
-- `data/settings.json` — adres HA i URL serwera
+### Budowanie paczki Windows (Portable App)
+Z menedżera wybierz "Zbuduj paczki Portable". Builder PyInstaller tworzy:
+`dist/Regis-Node/` — gotową do skopiowania na dowolny Windows PC.

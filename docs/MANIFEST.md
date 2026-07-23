@@ -19,27 +19,27 @@ Największym grzechem w tym projekcie jest implementacja funkcji "na siłę", ty
 
 ---
 
-## 3. Architektura: Trzy Niezależne Procesy
+## 3. Architektura: Dwie Usługi Produkcyjne
 
-System składa się z trzech oddzielnych, luźno powiązanych procesów. Każdy z nich może (i powinien) być traktowany jako osobny, niezależnie instalowalny pakiet.
+System składa się z dwóch oddzielnych, luźno powiązanych usług produkcyjnych. Każda jest niezależnie instalowana na dedykowanym urządzeniu.
 
-### 3.1 Kontroler (`regis-controller`)
-- **Rola:** Mózg systemu i jedyne źródło prawdy. Zarządza rejestrem aktywnych węzłów roboczych, routingiem sesji oraz synchronizacją konfiguracji i promptów.
-- **Deployment:** Zawsze i tylko Raspberry Pi 5. Singleton — może istnieć dokładnie jedna instancja.
-- **Kluczowa zasada:** Kontroler to lekki daemon. Nigdy nie powinien być obciążony obsługą modelu LLM. To dwa oddzielne procesy nawet na tym samym sprzęcie.
-- **Migracja kontekstu:** Przy pojawieniu się mocniejszego węzła, Kontroler czeka na zakończenie aktywnych konwersacji na słabszym węźle, a nowe sesje od razu kieruje do mocniejszego. Downgrade (gdy mocne urządzenie znika) uznawany jest za edge case pomijalny — wymaga świadomej akcji użytkownika (wyłączenie komputera), a konwersacje z inteligentnym domem trwają sekundy.
+### 3.1 Kontroler (`regis_controller`)
+- **Rola:** Mózg systemu i jedyne źródło prawdy. Zarządza rejestrem aktywnych węzłów roboczych, routingiem sesji oraz wykonywaniem narzędzi Home Assistant.
+- **Deployment:** Zawsze i tylko Raspberry Pi 5 (Linux). Singleton — może istnieć dokładnie jedna instancja. Dystrybuowany jako pakiet `.whl`.
+- **Kluczowa zasada:** Kontroler to lekki daemon — nigdy nie hostuje modelu LLM. Jest jedynym punktem komunikacji z Home Assistant; węzły robocze nigdy nie mają dostępu do HA bezpośrednio.
+- **Migracja kontekstu:** Przy pojawieniu się mocniejszego węzła, Kontroler czeka na zakończenie aktywnych konwersacji na słabszym węźle, a nowe sesje od razu kieruje do mocniejszego. Downgrade uznawany jest za edge case pomijalny.
 
-### 3.2 Węzeł Roboczy (`regis-worker`)
-- **Rola:** Hostowanie modelu LLM i wykonywanie inferencji. Nic więcej.
-- **Deployment:** Instalowany na dowolnym urządzeniu domowym zdolnym do uruchomienia modelu (desktop PC, laptop). Zgłasza swoją gotowość do Kontrolera przy starcie systemu (autostart). Kontroler sam wybiera najlepszy aktywny węzeł.
+### 3.2 Węzeł (`regis_node`)
+- **Rola:** Zunifikowana usługa Windows łącząca rolę Węzła Roboczego i Satelity w jednej aplikacji.
+- **Deployment:** Instalowany na dowolnym Windows PC zdolnym do uruchomienia modelu (desktop, laptop). Dystrybuowany jako **Portable App** (folder z binarką PyInstaller + `Uruchom.bat`).
+- **Forma:** Aplikacja **System Tray** — działa jako ikona w pasku zadań. Worker LLM i Satellite audio to ukryte procesy w tle zarządzane przez panel tray.
+- **Koegzystencja:** Worker (inferencja LLM) i Satellite (przechwytywanie audio) mogą działać jednocześnie na tym samym PC — nie wykluczają się.
 - **Uwaga:** Sam RPi 5 jest jednocześnie Kontrolerem i węzłem roboczym (fallback z najmniejszym modelem). Jeśli nie ma innych węzłów — RPi 5 przejmuje całość.
 
-### 3.3 Satelita (`regis-satellite`)
-- **Rola:** Głupie narzędzie I/O. Wychwytuje mowę użytkownika i dostarcza ją do systemu. Odbiera i odtwarza odpowiedź audio. Zero logiki biznesowej poza pipelineiem audio.
-- **Deployment:** Każdy interfejs użytkownika jest architektonicznie Satelitą — różnią się medium (audio vs. tekst):
+### 3.3 Satelita — typy interfejsów
+Każdy interfejs użytkownika jest architektonicznie Satelitą — różnią się medium:
   - **ESP32** — miniaturowy, dedykowany sprzęt w domu; robi tylko VAD i strumieniowanie.
-  - **Windows PC** — aplikacja desktopowa; robi VAD + WakeWord lokalnie, resztę deleguje.
-  - **Terminal CLI** — satelita tekstowa dla deweloperów; zamiast audio przesyła tekst.
+  - **Windows PC** (`regis_node`) — aplikacja tray; robi VAD + WakeWord lokalnie, resztę deleguje.
   - **Android** *(niepewna, odległa przyszłość)* — aplikacja mobilna.
 
 ### 3.4 Pipeline Przetwarzania Audio (Rozstrzygnięte)
