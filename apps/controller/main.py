@@ -170,3 +170,12 @@ async def clear_history():
     if worker_node:
         worker_node.clear_history()
     return {"status": "ok"}
+
+
+def start():
+    """Entry point dla CLI (regis-controller)."""
+    import uvicorn
+    uvicorn.run("apps.controller.main:app", host="0.0.0.0", port=8000)
+
+if __name__ == "__main__":
+    start()

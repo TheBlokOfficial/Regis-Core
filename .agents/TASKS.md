@@ -36,6 +36,6 @@ Używaj konwencji: `[ ]` do zrobienia, `[/]` w trakcie, `[x]` ukończone.
 - [x] Restrukturyzacja dokumentacji projektu: stworzenie MANIFEST.md, ONBOARDING.md, AGENT_GUIDE.md i aktualizacja protokołów w AGENTS.md.
 - [x] [ARCH] Rozdzielenie `apps/server/main.py` na Kontroler i Węzeł Roboczy (krytyczny dług architektoniczny).
 - [x] [ARCH] Przeniesienie hardcode'owanych adresów IP do `data/settings.json`.
-- [ ] [ARCH] Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`).
+- [x] [ARCH] Dodanie `pyproject.toml` z extras (`[controller]`, `[worker]`, `[satellite]`).
 - [ ] [ARCH] Implementacja Rejestru Encji (Satelity i Węzły rejestrują się w Kontrolerze z metadanymi).
 - [ ] [ARCH] Implementacja Spatial Context Filtering (filtrowanie urządzeń HA per pokój na podstawie metadanych Satelity).

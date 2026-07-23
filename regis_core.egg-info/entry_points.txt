@@ -1,0 +1,4 @@
+[console_scripts]
+regis-controller = apps.controller.main:start
+regis-terminal = apps.terminal.main:main
+regis-worker = apps.worker.node:start

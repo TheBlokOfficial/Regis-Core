@@ -105,3 +105,17 @@ class WorkerNode:
     def clear_history(self) -> None:
         """Czyści historię konwersacji silnika LLM."""
         self.llm_engine.clear_history()
+
+
+def start():
+    """Entry point dla CLI (regis-worker).
+    Obecnie Węzeł Roboczy jest importowany bezpośrednio przez Kontroler.
+    Docelowo ten punkt wejścia uruchomi serwer HTTP dla Węzła.
+    """
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info("Uruchamianie Węzła Roboczego w trybie standalone nie jest jeszcze w pełni wspierane.")
+    logging.info("Obecnie Węzeł jest uruchamiany bezpośrednio przez Kontroler.")
+
+if __name__ == "__main__":
+    start()
